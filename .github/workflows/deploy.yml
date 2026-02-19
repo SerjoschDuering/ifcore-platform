@@ -1,16 +1,16 @@
-name: Deploy to HF Spaces
+name: Deploy
 
 on:
   push:
     branches: [main]
 
 jobs:
-  deploy:
+  deploy-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: false   # we update with --remote below to get latest team commits
+          submodules: false   # updated with --remote below to get latest team commits
 
       - name: Fetch all submodules at latest remote HEAD
         run: git submodule update --remote --init --recursive
@@ -19,3 +19,21 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: bash backend/deploy.sh
+
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: cd frontend && npm install
+
+      - name: Deploy frontend to Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: cd frontend && npm run deploy
