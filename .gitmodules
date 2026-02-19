@@ -17,3 +17,9 @@
 [submodule "backend/teams/Mastodonte"]
 	path = backend/teams/Mastodonte
 	url = https://github.com/ankaramy/Mastodonte_SpeedWeek
+[submodule "backend/teams/lux-ai"]
+	path = backend/teams/lux-ai
+	url = https://github.com/Nihalmannath/Lux.Ai
+[submodule "backend/teams/team-d"]
+	path = backend/teams/team-d
+	url = https://github.com/PaintDumpster/automatic-fire-compliance-checker.git
