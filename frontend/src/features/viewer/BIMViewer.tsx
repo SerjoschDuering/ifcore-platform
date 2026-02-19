@@ -34,6 +34,7 @@ export function BIMViewer() {
 
   const ifcUrl = useStore((s) => s.ifcUrl);
   const colorMap = useStore((s) => s.colorMap);
+  const highlightColorMap = useStore((s) => s.highlightColorMap);
   const selectedIds = useStore((s) => s.selectedIds);
   // Sync check results → colorMap
   useViewer();
@@ -257,7 +258,7 @@ export function BIMViewer() {
     const model = modelRef.current;
     if (!components || !model) return;
 
-    const currentColorMap = useStore.getState().colorMap;
+    const currentColorMap = { ...useStore.getState().colorMap, ...useStore.getState().highlightColorMap };
     if (Object.keys(currentColorMap).length === 0) return;
 
     const fragments = components.get(OBC.FragmentsManager);
@@ -324,7 +325,7 @@ export function BIMViewer() {
   }
 
   // React to colorMap / selection changes
-  useEffect(() => { applyColors(); }, [colorMap, selectedIds]);
+  useEffect(() => { applyColors(); }, [colorMap, highlightColorMap, selectedIds]);
 
   if (error) {
     return <p style={{ color: "var(--error)" }}>{error}</p>;

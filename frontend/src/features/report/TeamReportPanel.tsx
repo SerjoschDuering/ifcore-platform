@@ -1,18 +1,7 @@
 import React, { useState } from "react";
 import { StatusBadge } from "../../components/StatusBadge";
+import { CATEGORIES } from "../../lib/constants";
 import type { CheckResult, ElementResult } from "../../lib/types";
-
-/* ───────────────────────────────────────────────────────────────────────────
-   Category → team mapping.
-   Each top-level folder groups one team's checks under a human-readable title.
-   ─────────────────────────────────────────────────────────────────────────── */
-export const CATEGORIES: { label: string; icon: string; team: string }[] = [
-  { label: "Habitability",        icon: "🏠", team: "Mastodonte" },
-  { label: "Energy Consumption",  icon: "⚡", team: "lux-ai" },
-  { label: "Fire Compliance",     icon: "🔥", team: "team-d" },
-  { label: "Structure",           icon: "🏗️", team: "structures" },
-  { label: "Lighting & Facade",   icon: "💡", team: "team-e" },
-];
 
 type Props = {
   checks: CheckResult[];

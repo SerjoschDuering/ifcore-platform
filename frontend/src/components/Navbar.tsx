@@ -5,6 +5,8 @@ const links = [
   { to: "/projects", label: "Projects" },
   { to: "/checks", label: "Checks" },
   { to: "/report", label: "Report" },
+  { to: "/dashboard", label: "Dashboard" },
+  { to: "/chat", label: "Chat" },
 ] as const;
 
 const linkBase = { fontWeight: 500, fontSize: "0.875rem" } as const;

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "../stores/store";
-import { CategoryFolder, CATEGORIES } from "../features/report/TeamReportPanel";
+import { CategoryFolder } from "../features/report/TeamReportPanel";
+import { CATEGORIES } from "../lib/constants";
 import type { CheckResult } from "../lib/types";
 
 export const Route = createFileRoute("/report")({

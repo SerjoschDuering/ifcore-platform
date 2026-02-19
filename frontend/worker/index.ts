@@ -9,7 +9,13 @@ import files from "./routes/files";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-app.use("/api/*", cors({ origin: "*" }));
+app.use(
+  "/api/*",
+  cors({
+    origin: ["http://localhost:5173", "https://ifcore-platform.pages.dev"],
+    credentials: true,
+  })
+);
 app.route("/api", health);
 app.route("/api/upload", upload);
 app.route("/api/checks", checks);

@@ -18,6 +18,10 @@ export type ViewerSlice = {
   colorMap: Record<string, string>;
   setColorMap: (map: Record<string, string>) => void;
 
+  highlightColorMap: Record<string, string>;
+  setHighlightColorMap: (map: Record<string, string>) => void;
+  clearHighlights: () => void;
+
   hiddenIds: Set<string>;
   hideElements: (ids: string[]) => void;
   showElements: (ids: string[]) => void;
@@ -46,6 +50,10 @@ export const createViewerSlice: StateCreator<AppStore, [], [], ViewerSlice> = (s
 
   colorMap: {},
   setColorMap: (map) => set({ colorMap: map }),
+
+  highlightColorMap: {},
+  setHighlightColorMap: (map) => set({ highlightColorMap: map }),
+  clearHighlights: () => set({ highlightColorMap: {} }),
 
   hiddenIds: new Set(),
   hideElements: (ids) => set((s) => {
