@@ -1,0 +1,16 @@
+# Team submodules — uncomment and update when teams are set up
+# [submodule "backend/teams/team-a"]
+#     path = backend/teams/team-a
+#     url = https://github.com/SerjoschDuering/ifcore-team-a.git
+# [submodule "backend/teams/team-b"]
+#     path = backend/teams/team-b
+#     url = https://github.com/SerjoschDuering/ifcore-team-b.git
+# [submodule "backend/teams/team-c"]
+#     path = backend/teams/team-c
+#     url = https://github.com/SerjoschDuering/ifcore-team-c.git
+# [submodule "backend/teams/team-d"]
+#     path = backend/teams/team-d
+#     url = https://github.com/SerjoschDuering/ifcore-team-d.git
+# [submodule "backend/teams/team-e"]
+#     path = backend/teams/team-e
+#     url = https://github.com/SerjoschDuering/ifcore-team-e.git

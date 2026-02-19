@@ -1,0 +1,27 @@
+{
+  "name": "ifcore-platform",
+  "compatibility_date": "2025-04-01",
+  "main": "./worker/index.ts",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ifcore-db",
+      "database_id": "bf5f1c75-8fea-4ec7-8033-c91a8e61b160"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "ifcore-files"
+    }
+  ],
+  "vars": {
+    "HF_SPACE_URL": "https://serjd-ifcore-platform.hf.space"
+  }
+}

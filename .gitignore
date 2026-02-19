@@ -6,9 +6,15 @@ __pycache__/
 # Node
 node_modules/
 .wrangler/
+dist/
 
 # Team code (populated by deploy.sh from submodules)
 backend/teams/*/
+!backend/teams/demo/
+
+# Auto-generated
+src/routeTree.gen.ts
+.tanstack/
 
 # Environment
 .env

@@ -1,0 +1,1 @@
+ALTER TABLE jobs ADD COLUMN hf_job_id TEXT;

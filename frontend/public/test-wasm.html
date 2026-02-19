@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head><title>web-ifc WASM test</title></head>
+<body>
+<pre id="log">Testing web-ifc WASM loading...
+</pre>
+<script>
+function log(msg) {
+  document.getElementById('log').textContent += msg + '\n';
+  console.log(msg);
+}
+</script>
+
+<!-- TEST 1: CDN IIFE -->
+<script>log('--- Test 1: CDN IIFE ---');</script>
+<script src="https://cdn.jsdelivr.net/npm/web-ifc@0.0.75/web-ifc-api-iife.js"
+        onerror="log('CDN IIFE failed to load')"
+        onload="log('CDN IIFE loaded, WebIFC type: ' + typeof WebIFC)"></script>
+<script>
+(async () => {
+  try {
+    if (typeof WebIFC === 'undefined') { log('WebIFC is undefined!'); return; }
+    log('IfcAPI type: ' + typeof WebIFC.IfcAPI);
+    log('IfcAPI keys sample: ' + Object.keys(WebIFC).slice(0,10).join(', '));
+    const api = new WebIFC.IfcAPI();
+    log('Instance created OK');
+    api.SetWasmPath('https://cdn.jsdelivr.net/npm/web-ifc@0.0.75/');
+    log('WASM path set to CDN');
+    await api.Init();
+    log('SUCCESS: CDN web-ifc initialized!');
+    api.Close();
+  } catch (e) {
+    log('CDN ERROR: ' + e.message);
+  }
+})();
+</script>
+
+<!-- TEST 2: Local IIFE -->
+<script>
+// Reset global to test local version
+window._cdnWebIFC = window.WebIFC;
+window.WebIFC = undefined;
+log('\n--- Test 2: Local IIFE ---');
+</script>
+<script src="/web-ifc-api-iife.js"
+        onerror="log('Local IIFE failed to load')"
+        onload="log('Local IIFE loaded, WebIFC type: ' + typeof WebIFC)"></script>
+<script>
+(async () => {
+  try {
+    if (typeof WebIFC === 'undefined') { log('Local WebIFC is undefined!'); return; }
+    const api = new WebIFC.IfcAPI();
+    log('Local instance created OK');
+    api.SetWasmPath('/');
+    log('WASM path set to /');
+    await api.Init();
+    log('SUCCESS: Local web-ifc initialized!');
+    api.Close();
+  } catch (e) {
+    log('LOCAL ERROR: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>
