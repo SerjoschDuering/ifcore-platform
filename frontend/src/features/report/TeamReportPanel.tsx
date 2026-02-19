@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { StatusBadge } from "../../components/StatusBadge";
-import { CATEGORIES } from "../../lib/constants";
+import { statusToHex } from "../../lib/constants";
+import { useStore } from "../../stores/store";
 import type { CheckResult, ElementResult } from "../../lib/types";
 
 type Props = {
@@ -19,11 +20,29 @@ export function CategoryFolder({
 }: { label: string; icon: string } & Props) {
   const [open, setOpen] = useState(false);
 
-  const total   = checks.length;
-  const passed  = checks.filter((c) => c.status === "pass").length;
-  const failed  = checks.filter((c) => c.status === "fail").length;
-  const errors  = checks.filter((c) => c.status === "error").length;
-  const unknown = checks.filter((c) => c.status === "unknown").length;
+  const { passed, failed, errors, unknown } = useMemo(() => {
+    let passed = 0, failed = 0, errors = 0, unknown = 0;
+    for (const c of checks) {
+      if (c.status === "pass") passed++;
+      else if (c.status === "fail") failed++;
+      else if (c.status === "error") errors++;
+      else if (c.status === "unknown") unknown++;
+    }
+    return { passed, failed, errors, unknown };
+  }, [checks]);
+
+  const total = checks.length;
+
+  // Pre-group elements by check ID — O(n) instead of O(n*m)
+  const elementsByCheck = useMemo(() => {
+    const map = new Map<string, ElementResult[]>();
+    for (const el of elementResults) {
+      const list = map.get(el.check_result_id);
+      if (list) list.push(el);
+      else map.set(el.check_result_id, [el]);
+    }
+    return map;
+  }, [elementResults]);
 
   const overallStatus =
     total === 0 ? "blocked" :
@@ -32,21 +51,19 @@ export function CategoryFolder({
     unknown > 0 ? "unknown" :
     "pass";
 
+  function handleToggle() {
+    if (open) {
+      useStore.getState().clearHighlights();
+    }
+    setOpen(!open);
+  }
+
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
       {/* Category header — Level 1 */}
       <button
-        onClick={() => setOpen(!open)}
-        style={{
-          all: "unset",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          width: "100%",
-          padding: "0.9rem 1.25rem",
-          cursor: "pointer",
-          boxSizing: "border-box",
-        }}
+        onClick={handleToggle}
+        style={folderHeaderStyle}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
           <Chevron open={open} />
@@ -75,7 +92,7 @@ export function CategoryFolder({
               <CheckRow
                 key={cr.id}
                 check={cr}
-                elements={elementResults.filter((e) => e.check_result_id === cr.id)}
+                elements={elementsByCheck.get(cr.id) || emptyElements}
               />
             ))
           )}
@@ -85,6 +102,19 @@ export function CategoryFolder({
   );
 }
 
+const emptyElements: ElementResult[] = [];
+
+const folderHeaderStyle: React.CSSProperties = {
+  all: "unset",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  width: "100%",
+  padding: "0.9rem 1.25rem",
+  cursor: "pointer",
+  boxSizing: "border-box",
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Mid-level: individual check  (Level 2)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -92,23 +122,42 @@ function CheckRow({ check, elements }: { check: CheckResult; elements: ElementRe
   const [expanded, setExpanded] = useState(false);
   const hasElements = elements.length > 0;
 
+  const elementSummary = useMemo(() => {
+    if (!hasElements) return check.summary;
+    let pass = 0, fail = 0;
+    for (const e of elements) {
+      if (e.check_status === "pass") pass++;
+      else if (e.check_status === "fail") fail++;
+    }
+    return `${elements.length} element${elements.length !== 1 ? "s" : ""} (${pass} pass, ${fail} fail)`;
+  }, [elements, hasElements, check.summary]);
+
+  function handleClick() {
+    if (!hasElements) return;
+    const { setHighlightColorMap, selectElements, setViewerVisible } = useStore.getState();
+    const map: Record<string, string> = {};
+    const ids: string[] = [];
+    for (const el of elements) {
+      if (!el.element_id) continue;
+      map[el.element_id] = statusToHex(el.check_status);
+      ids.push(el.element_id);
+    }
+    if (ids.length === 0) {
+      setExpanded(!expanded);
+      return;
+    }
+    setHighlightColorMap(map);
+    selectElements(ids);
+    setViewerVisible(true);
+    setExpanded(!expanded);
+  }
+
   return (
     <>
       <button
-        onClick={() => hasElements && setExpanded(!expanded)}
-        style={{
-          all: "unset",
-          display: "grid",
-          gridTemplateColumns: "1.5rem 1fr auto auto",
-          alignItems: "center",
-          gap: "0.5rem",
-          width: "100%",
-          padding: "0.55rem 1.25rem 0.55rem 2.25rem",
-          borderBottom: "1px solid var(--border)",
-          cursor: hasElements ? "pointer" : "default",
-          background: "var(--surface)",
-          boxSizing: "border-box",
-        }}
+        onClick={handleClick}
+        className="report-check-row"
+        style={checkRowStyle}
       >
         <span style={{ visibility: hasElements ? "visible" : "hidden" }}>
           <Chevron open={expanded} size={10} />
@@ -117,8 +166,8 @@ function CheckRow({ check, elements }: { check: CheckResult; elements: ElementRe
           {check.check_name.replace("check_", "").replace(/_/g, " ")}
         </span>
         <StatusBadge status={check.status} />
-        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", minWidth: 150, textAlign: "right" }}>
-          {check.summary}
+        <span className="report-value-mono" style={{ color: "var(--text-muted)", minWidth: 150, textAlign: "right" }}>
+          {elementSummary}
         </span>
       </button>
 
@@ -131,46 +180,46 @@ function CheckRow({ check, elements }: { check: CheckResult; elements: ElementRe
   );
 }
 
+const checkRowStyle: React.CSSProperties = {
+  all: "unset",
+  display: "grid",
+  gridTemplateColumns: "1.5rem 1fr auto auto",
+  alignItems: "center",
+  gap: "0.5rem",
+  width: "100%",
+  padding: "0.55rem 1.25rem 0.55rem 2.25rem",
+  borderBottom: "1px solid var(--border)",
+  background: "var(--surface)",
+  boxSizing: "border-box",
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Bottom-level: individual element  (Level 3)
    ═══════════════════════════════════════════════════════════════════════════ */
 function ElementRow({ el }: { el: ElementResult }) {
+  function handleClick() {
+    if (!el.element_id) return;
+    const { highlightColorMap, setHighlightColorMap, selectElements, setViewerVisible } = useStore.getState();
+    setHighlightColorMap({ ...highlightColorMap, [el.element_id]: statusToHex(el.check_status) });
+    selectElements([el.element_id]);
+    setViewerVisible(true);
+  }
+
   return (
     <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1.5rem 6px 1fr auto auto",
-        alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.3rem 1.25rem 0.3rem 3.75rem",
-        background: "var(--bg)",
-        borderBottom: "1px solid var(--border)",
-        fontSize: "0.8rem",
-      }}
+      onClick={handleClick}
+      className="report-element-row"
+      style={elementRowStyle}
     >
       <span />
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: "50%",
-          background: dotColor(el.check_status),
-          display: "inline-block",
-        }}
-      />
+      <span style={dotStyle(el.check_status)} />
       <span style={{ color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {el.element_name_long || el.element_name || el.element_type || "—"}
+        {el.element_name_long || el.element_name || el.element_type || "\u2014"}
       </span>
       <StatusBadge status={el.check_status} />
       <span
-        style={{
-          color: "var(--text-muted)",
-          maxWidth: 320,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          textAlign: "right",
-        }}
+        className="report-value-mono"
+        style={{ color: "var(--text-muted)", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right" }}
       >
         {el.actual_value && el.required_value
           ? `${el.actual_value} / ${el.required_value}`
@@ -178,6 +227,21 @@ function ElementRow({ el }: { el: ElementResult }) {
       </span>
     </div>
   );
+}
+
+const elementRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1.5rem 6px 1fr auto auto",
+  alignItems: "center",
+  gap: "0.5rem",
+  padding: "0.3rem 1.25rem 0.3rem 3.75rem",
+  background: "var(--bg)",
+  borderBottom: "1px solid var(--border)",
+  fontSize: "0.8rem",
+};
+
+function dotStyle(status: string): React.CSSProperties {
+  return { width: 6, height: 6, borderRadius: "50%", background: dotColor(status), display: "inline-block" };
 }
 
 /* ── tiny helpers ────────────────────────────────────────────────────────── */

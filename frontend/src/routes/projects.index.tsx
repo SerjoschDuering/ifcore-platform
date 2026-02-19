@@ -2,12 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { UploadForm } from "../features/upload/UploadForm";
 import { useStore } from "../stores/store";
 import { getProjects } from "../lib/api";
+import { stopPolling } from "../lib/poller";
 import { StatusBadge } from "../components/StatusBadge";
 
 export const Route = createFileRoute("/projects/")({
   loader: async () => {
+    stopPolling();
     useStore.getState().setViewerVisible(false);
-    useStore.getState().setActiveProjectId(null);
+    useStore.getState().setActiveProject(null);
     const projects = await getProjects();
     useStore.getState().setProjects(projects);
     return projects;

@@ -10,6 +10,11 @@ export default defineConfig({
     react(),
     cloudflare(),
   ],
+  server: {
+    watch: {
+      ignored: ["**/routeTree.gen.ts"],
+    },
+  },
   resolve: {
     alias: [
       { find: /^@\//, replacement: `${path.resolve(__dirname, "src")}/` },

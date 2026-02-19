@@ -179,15 +179,31 @@ Full example: `backend/teams/demo/tools/checker_demo.py`
 6. **`git submodule add` blocked by .gitignore** — always use the `-f` flag: `git submodule add -f <url> backend/teams/<name>`. Without `-f` it fails with "already exists in the index" or is silently blocked.
 7. **Other files in team repos are ignored by design** — orchestrator only picks up `checker_*.py` / `check_*`. Notebooks, `main.py`, helper modules etc. are untouched.
 
+### Better Auth + Drizzle + D1 (auth-specific)
+
+8. **Drizzle schema is REQUIRED** — `drizzleAdapter(db, { provider: "sqlite" })` alone is not enough. You must pass a schema: `drizzle(env.DB, { schema })` where the schema exports tables named `user` (singular), `session`, `account`, `verification`. Without this, better-auth throws `"model 'user' not found"`. Schema lives at `worker/lib/schema.ts`.
+9. **Date vs integer columns** — Better Auth passes JS `Date` objects. D1 only accepts primitives. Schema must use `integer("col", { mode: "timestamp" })` so drizzle auto-converts Date↔integer. Without this you get `D1_TYPE_ERROR: Type 'object' not supported`.
+10. **No Uint8Array spread in Workers** — `String.fromCharCode(...uint8Array)` crashes in workerd/miniflare with `"Symbol.iterator not a function"`. Use a loop: `for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i])`. Affects custom PBKDF2 hasher.
+11. **Bcrypt exceeds Workers CPU limit** — Better Auth defaults to bcrypt which exceeds the 10ms free-tier CPU limit (Error 1102). Custom PBKDF2 hasher via Web Crypto API is required. See `worker/lib/auth.ts`.
+12. **Zombie dev servers block port 5173** — If `npm run dev` starts on a different port (5174, 5175…), auth and CORS break because trusted origins are port-specific. Kill stale `node` processes: `lsof -i :5173` then `kill <PID>`. CORS in `worker/index.ts` now accepts any `localhost:*` port dynamically.
+
+### Chat / AI Backend
+
+13. **Chat proxies through the CF Worker** — Frontend hits `/api/chat` → Worker proxies to `HF_SPACE_URL/chat` → HF runs PydanticAI agent → returns response. Route: `worker/routes/chat.ts`. Never call HF directly from the browser (CORS + DNS issues).
+14. **Gemini API key required for chat** — Backend uses `google-gla:gemini-2.0-flash` via PydanticAI. Set `GEMINI_API_KEY` env var before starting the backend: `export GEMINI_API_KEY=your-key && uvicorn main:app --port 7860`. Without it, chat returns `UserError`.
+
 ---
 
 ## Key Files
 
 | File | What |
 |------|------|
-| `backend/main.py` | FastAPI: `/health`, `POST /check`, `GET /jobs/{id}` |
+| `backend/main.py` | FastAPI: `/health`, `POST /check`, `POST /chat`, `GET /jobs/{id}` |
 | `backend/orchestrator.py` | Discovers + runs `check_*` functions |
 | `backend/deploy.sh` | **Change `HF_REPO`** for new owner · flatten submodules → push to HF |
 | `frontend/wrangler.jsonc` | **Change `database_id` + `HF_SPACE_URL`** for new owner |
+| `frontend/worker/lib/auth.ts` | Better Auth config + PBKDF2 hasher |
+| `frontend/worker/lib/schema.ts` | Drizzle schema for auth tables (user, session, account, verification) |
+| `frontend/worker/routes/chat.ts` | Proxies `/api/chat` to HF Space |
 | `frontend/migrations/0001_init.sql` | D1 schema |
 | `frontend/.dev.vars` | Local env overrides — gitignored, never commit |

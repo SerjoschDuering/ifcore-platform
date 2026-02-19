@@ -3,7 +3,10 @@ import os
 import glob
 import uuid
 import time
+import logging
 import ifcopenshell
+
+logger = logging.getLogger("ifcore")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -20,12 +23,15 @@ def discover_checks():
         parts = path.replace(BASE_DIR + os.sep, "").split(os.sep)
         team = parts[1]
         module_name = os.path.splitext(os.path.basename(path))[0]
-        spec = importlib.util.spec_from_file_location(f"teams.{team}.{module_name}", path)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        for attr in dir(mod):
-            if attr.startswith("check_") and callable(getattr(mod, attr)):
-                checks.append((team, attr, getattr(mod, attr)))
+        try:
+            spec = importlib.util.spec_from_file_location(f"teams.{team}.{module_name}", path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            for attr in dir(mod):
+                if attr.startswith("check_") and callable(getattr(mod, attr)):
+                    checks.append((team, attr, getattr(mod, attr)))
+        except Exception as exc:
+            logger.warning(f"[discover] skipping {team}/{module_name}: {exc}")
     return checks
 
 

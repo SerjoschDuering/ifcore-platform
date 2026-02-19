@@ -7,9 +7,7 @@ export function ResultsTable() {
   const elementResults = useStore((s) => s.elementResults);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  if (checkResults.length === 0) {
-    return <p style={{ color: "var(--text-muted)", marginTop: "1rem" }}>No check results yet. Upload a file and run checks.</p>;
-  }
+  if (checkResults.length === 0) return null;
 
   return (
     <div style={{ marginTop: "1rem" }}>

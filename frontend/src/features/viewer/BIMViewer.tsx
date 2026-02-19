@@ -328,26 +328,46 @@ export function BIMViewer() {
   useEffect(() => { applyColors(); }, [colorMap, highlightColorMap, selectedIds]);
 
   if (error) {
-    return <p style={{ color: "var(--error)" }}>{error}</p>;
+    return (
+      <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "rgba(8, 12, 22, 0.85)" }}>
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1rem",
+        }}>
+          <div className="glass-panel" style={{ maxWidth: 360, padding: "1rem", textAlign: "center" }}>
+            <h3 style={{ margin: 0, marginBottom: "0.4rem", fontSize: "1rem" }}>Model could not be loaded</h3>
+            <p style={{ margin: 0, marginBottom: "0.75rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+              {error}. Check file format and storage link, then retry upload.
+            </p>
+            <button className="btn btn-primary" onClick={() => setError(null)}>Dismiss</button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ position: "relative", height: "70vh", background: "var(--surface)", borderRadius: 8, overflow: "hidden" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", background: "rgba(8, 12, 22, 0.85)", overflow: "hidden" }}>
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
       {isLoading && (
         <div style={{
           position: "absolute", inset: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: "rgba(0,0,0,0.3)", color: "white", fontSize: "0.875rem",
+          background: "rgba(4, 8, 18, 0.45)", color: "white", fontSize: "0.875rem",
         }}>
-          Loading IFC model...
+          <span className="glass-chip" style={{ color: "var(--text)" }}>Loading IFC model...</span>
         </div>
       )}
       {selectedIds.size > 0 && (
         <div style={{
           position: "absolute", top: 8, left: 8,
-          background: "rgba(0, 0, 0, 0.6)", color: "white",
-          padding: "0.35rem 0.5rem", borderRadius: 4, fontSize: "0.75rem",
+          background: "rgba(16, 25, 40, 0.72)", color: "white",
+          padding: "0.35rem 0.5rem", borderRadius: 999, fontSize: "0.75rem",
+          border: "1px solid var(--border)",
         }}>
           Selected: {[...selectedIds][0]}
         </div>

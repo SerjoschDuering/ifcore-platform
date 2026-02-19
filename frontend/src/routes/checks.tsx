@@ -7,7 +7,7 @@ export const Route = createFileRoute("/checks")({
     useStore.getState().setViewerVisible(false);
   },
   component: () => (
-    <div className="container">
+    <div >
       <h1 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>Check Results</h1>
       <ResultsTable />
     </div>

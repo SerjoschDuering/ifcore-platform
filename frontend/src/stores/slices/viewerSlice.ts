@@ -8,9 +8,6 @@ export type ViewerSlice = {
   viewerVisible: boolean;
   setViewerVisible: (v: boolean) => void;
 
-  activeProjectId: string | null;
-  setActiveProjectId: (id: string | null) => void;
-
   selectedIds: Set<string>;
   selectElements: (ids: string[]) => void;
   clearSelection: () => void;
@@ -37,9 +34,6 @@ export const createViewerSlice: StateCreator<AppStore, [], [], ViewerSlice> = (s
 
   viewerVisible: false,
   setViewerVisible: (v) => set({ viewerVisible: v }),
-
-  activeProjectId: null,
-  setActiveProjectId: (id) => set({ activeProjectId: id }),
 
   selectedIds: new Set(),
   selectElements: (ids) => set((s) => {
