@@ -24,5 +24,5 @@
 	path = backend/teams/team-d
 	url = https://github.com/PaintDumpster/automatic-fire-compliance-checker.git
 [submodule "backend/teams/LlumAI"]
-	path = backend/teams/team-e
+	path = backend/teams/LlumAI
 	url = https://github.com/ertugrul14/LlumAI
