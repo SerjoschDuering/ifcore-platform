@@ -23,6 +23,8 @@ find "$TMPDIR/teams" -name ".git" -type d -exec rm -rf {} + 2>/dev/null || true
 cd "$TMPDIR"
 
 git init -b main
+git config user.email "deploy@ifcore"
+git config user.name "IFCore Deploy"
 git add .
 git commit -m "deploy: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # Use token auth in CI (set HF_TOKEN env var or GitHub secret)
