@@ -69,7 +69,7 @@ Before ANY team starts coding, push these to main:
 ```
 08:00  Captain: push constants.ts + filterSlice.ts + highlightColorMap to main
        Team B: start Better Auth setup (independent)
-       Team E: start standalone HTML prototype (independent)
+       Team E: start TechnicalDashboard.tsx + Recharts (independent)
        Structures: start ChatPanel + chatHandler (independent)
        Lux-AI: start CSS tree-lines + hover states (independent)
 
@@ -83,7 +83,7 @@ Before ANY team starts coding, push these to main:
 15:00  Demo prep
 ```
 
-**Teams that can start immediately (no blockers):** B, E (Phase A), Structures, Lux-AI (Steps 1-3)
+**Teams that can start immediately (no blockers):** B, E, Structures, Lux-AI (Steps 1-3)
 **Teams blocked on captain:** D (fully), Lux-AI (Step 4 click-to-highlight only)
 
 ---
@@ -94,7 +94,7 @@ Before ANY team starts coding, push these to main:
 |------|------|-----|----------|
 | Team B | MEDIUM | CF Worker quirks (CPU limits, PBKDF2) | Skip auth for demo |
 | Team D | LOW-MED | Blocked on captain prep | Hardcode constants locally |
-| Team E | LOW | Phase A is fully independent | Standalone HTML is the fallback |
+| Team E | LOW | Recharts + Zustand, no captain blockers | Dashboard with real data from all 5 teams |
 | Lux-AI | LOW | 80% already built | Ship CSS polish without click-to-highlight |
 | **Structures** | **HIGH** | Zero code, architecture pivot required | Keyword-only chat (skip LLM Phase 2) |
 
