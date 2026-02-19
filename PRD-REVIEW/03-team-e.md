@@ -2,13 +2,6 @@
 
 **Branch:** `feature/team-e-TechDashboard` | **Verdict:** NEEDS CHANGES (minor — coordinate colors + state)
 
-| Criterion | Score | Notes |
-|-----------|-------|-------|
-| Architecture Fit | 4/5 | Follows feature module pattern. Prototype-first is sound |
-| Scope Feasibility | 5/5 | Standalone HTML prototype achievable in 1 day |
-| Data Contract | 5/5 | Best of all PRDs — real data from all 5 teams |
-| Design Quality | 4/5 | Dark palette well-defined. Status colors conflict with others |
-| Integration Plan | 4/5 | Phase A (standalone) then Phase B (platform) is pragmatic |
 
 **Shared State (Phase B):** Reads `checkResults`, `elementResults`, `selectedCategory`, `selectedCheckId`. Writes: none (read-only visualization).
 
@@ -48,61 +41,82 @@ This will be fixed globally: the captain will create a shared `constants.ts` on 
 
 **Action:** No action needed right now. Just know that the final hex values will come from a shared file.
 
-### 2. Phase B integration pattern -- React component, not `mount()`
+### 2. Integration pattern -- React component, not `mount()`
 
-Your PRD shows a `mount(container)` pattern for platform integration. The platform actually uses React components rendered inside TanStack Router routes -- not imperative mounting.
+Your PRD shows a `mount(container)` pattern. The platform uses React components
+rendered inside TanStack Router routes -- not imperative mounting.
 
 What you wrote:
 ```javascript
 export function mount(container) { ... }
 ```
 
-What Phase B actually looks like:
+What it actually looks like:
 ```tsx
 // src/features/dashboard/TechnicalDashboard.tsx
 export function TechnicalDashboard() {
   const checkResults = useStore(s => s.checkResults);
-  const selectedCheck = useStore(s => s.selectedCheckId);
-  // ... render cards, charts, table
+  const elementResults = useStore(s => s.elementResults);
+  // ... render cards, charts, table using Recharts
 }
 ```
 
-**Action:** Do not worry about this for Phase A. When you get to Phase B, convert your standalone HTML into a React component. Your AI assistant knows how to do this -- just tell it "convert my dashboard HTML to a React component using the feature module pattern from the IFCore skill." You will also need to create a route file `src/routes/dashboard.tsx` with `createFileRoute("/dashboard")` and add a "Dashboard" link to the Navbar.
+Your AI agent builds this directly. Tell it: "Create a TechnicalDashboard
+React component using the feature module pattern from the IFCore skill."
 
-### 3. Pick a charting library
+### 3. Charting library: Recharts
 
-Your PRD mentions donut chart and bar chart but does not specify which library renders them.
+Your PRD mentions donut chart and bar chart but does not specify which library.
+Use [Recharts](https://recharts.org/) -- it is React-native, composable, and
+matches the platform stack. Install it:
 
-- **Phase A (standalone HTML):** Use [Chart.js](https://www.chartjs.org/). Load it from CDN -- one script tag, no build step, works instantly.
-- **Phase B (React integration):** Use [Recharts](https://recharts.org/). It is React-native, composable, and matches the rest of the platform stack.
+```bash
+cd frontend && npm install recharts
+```
 
-**Action:** Add `<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>` to your `index.html` and start charting.
+**Action:** Your AI agent has the IFCore skill. Tell it: "I need to build a
+dashboard with Recharts that reads checkResults and elementResults from the
+Zustand store. Use the feature module pattern." It will generate the components.
 
 ---
 
 ## Your 1-Day Game Plan
 
-You are building **Phase A only** today. This is a standalone HTML file with mock data.
+You are building **directly into the platform** -- a React component reading
+real data from the Zustand store. Your AI coding agent handles React and
+TypeScript. You focus on what the dashboard should show.
 
-### Morning: Structure + Summary Cards
+### Morning: Dashboard Component + Summary Cards (2.5 hours)
 
-1. Create `index.html` with your dark theme CSS (Air Black `#111111` background -- great choice)
-2. Add Chart.js from CDN
-3. Hard-code mock data from your PRD's "All Teams & Tools" tables -- you already have the numbers
-4. Build the summary cards row: Total, Pass, Fail, Warning, Blocked, Pass Rate %
-5. Add a dropdown or tab bar to switch between tools (simulates the sidebar click)
+1. Create `src/features/dashboard/TechnicalDashboard.tsx`
+2. Read `checkResults` and `elementResults` from `useStore()`
+3. Build the summary cards row: Total, Pass, Fail, Warning, Blocked, Pass Rate %
+4. Create `src/routes/dashboard.tsx` with `createFileRoute("/dashboard")`
+5. Add a "Dashboard" link to the Navbar
+6. Apply your dark theme CSS (Air Black `#111111` background -- great choice)
 
-### Afternoon: Charts + Table
+### Afternoon: Charts + Table (2.5 hours)
 
-6. Add the donut chart (status breakdown) using Chart.js doughnut type
-7. Add the bar chart (actual vs required) -- for tools that have numeric values
-8. Add the scrollable element table with alternating row colors (`#3A3A3A` / `#111111`)
-9. Handle the edge cases: what happens when you select a tool with zero elements? With all blocked? With error status?
-10. Push to your feature branch
+7. Add the donut chart (status breakdown) using Recharts `<PieChart>` / `<Pie>`
+8. Add the bar chart (actual vs required) using Recharts `<BarChart>` / `<Bar>`
+9. Add the scrollable element table with alternating row colors
+10. Add a dropdown or tab bar to switch between checks (simulates Team D's sidebar click)
+11. Handle edge cases: zero elements, all blocked, error status
+
+### Polish (1 hour)
+
+12. Number animations on summary cards (count up from 0)
+13. Color the pass rate: green >80%, amber 50-80%, red <50%
+14. "No data" empty state: "Select a check to view results"
+15. Push to your feature branch
 
 ### What "done" looks like
 
-Open `index.html` in Chrome. Pick "wall thickness" from the dropdown. See 113 elements, 0% pass rate, a fully red donut chart, and a scrollable table. Switch to "beam depth" -- 8 elements, 100% pass rate, green donut. Switch to a Team D error tool -- see an error message, no charts. That is your demo.
+Navigate to `/dashboard` in the platform. See summary cards with real data
+from all 5 teams. Click "wall thickness" -- see 113 elements, 0% pass rate,
+a red donut chart, and a scrollable table. Switch to "beam depth" -- 8
+elements, 100% pass rate, green donut. Switch to a Team D error check -- see
+a clean error state. That is your demo -- with **real data**, not mocks.
 
 ---
 
