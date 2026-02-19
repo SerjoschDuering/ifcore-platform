@@ -4,6 +4,7 @@ import { useStore } from "../stores/store";
 const links = [
   { to: "/projects", label: "Projects" },
   { to: "/checks", label: "Checks" },
+  { to: "/report", label: "Report" },
 ] as const;
 
 const linkBase = { fontWeight: 500, fontSize: "0.875rem" } as const;
