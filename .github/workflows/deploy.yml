@@ -1,0 +1,21 @@
+name: Deploy to HF Spaces
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false   # we update with --remote below to get latest team commits
+
+      - name: Fetch all submodules at latest remote HEAD
+        run: git submodule update --remote --init --recursive
+
+      - name: Deploy backend to HF Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: bash backend/deploy.sh
