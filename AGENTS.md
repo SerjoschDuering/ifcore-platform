@@ -112,7 +112,7 @@ Orchestrator auto-discovers all `check_*` functions in `teams/*/tools/checker_*.
 
 ## Check Function Contract
 
-> ⚠️ **The orchestrator will silently skip functions that don't follow this contract.**
+> The orchestrator only picks up `checker_*.py` files and `check_*` functions. Everything else in the team repo is ignored — notebooks, helpers, `main.py` etc. are all fine to have.
 
 ### File naming
 - File must be in `tools/` directory inside the team repo
@@ -177,7 +177,7 @@ Full example: `backend/teams/demo/tools/checker_demo.py`
 4. **`npm run deploy` vs `npx wrangler deploy`** — always use the npm script
 5. **Windows + `deploy.sh`** — `bash` is not available in plain PowerShell. Use Git Bash, WSL, or ask the instructor to run the deploy. The `git submodule add -f` step works in PowerShell directly.
 6. **`git submodule add` blocked by .gitignore** — always use the `-f` flag: `git submodule add -f <url> backend/teams/<name>`. Without `-f` it fails with "already exists in the index" or is silently blocked.
-7. **Wrong file/function names** — orchestrator silently skips anything not matching `checker_*.py` / `check_*`. Double-check naming before reporting "my checks aren't showing up".
+7. **Other files in team repos are ignored by design** — orchestrator only picks up `checker_*.py` / `check_*`. Notebooks, `main.py`, helper modules etc. are untouched.
 
 ---
 
