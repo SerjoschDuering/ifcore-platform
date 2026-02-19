@@ -14,6 +14,18 @@
 # [submodule "backend/teams/team-e"]
 #     path = backend/teams/team-e
 #     url = https://github.com/SerjoschDuering/ifcore-team-e.git
+[submodule "backend/teams/Mastodonte"]
+	path = backend/teams/Mastodonte
+	url = https://github.com/ankaramy/Mastodonte_SpeedWeek
+[submodule "backend/teams/lux-ai"]
+	path = backend/teams/lux-ai
+	url = https://github.com/Nihalmannath/Lux.Ai
+[submodule "backend/teams/team-d"]
+	path = backend/teams/team-d
+	url = https://github.com/PaintDumpster/automatic-fire-compliance-checker.git
+[submodule "backend/teams/team-e"]
+	path = backend/teams/team-e
+	url = https://github.com/ertugrul14/LlumAI
 [submodule "backend/teams/structures"]
 	path = backend/teams/structures
 	url = https://github.com/Jokar-man/structure_compliance_check.git
