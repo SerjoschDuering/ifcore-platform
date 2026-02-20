@@ -28,3 +28,72 @@ a:hover { text-decoration: underline; }
 .btn-primary { background: var(--accent); color: white; }
 .btn-primary:hover { background: #2563eb; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Report tree ─────────────────────────────────────────────── */
+
+/* Level 2: check rows — vertical + horizontal connector lines */
+.tree-check {
+  position: relative;
+}
+.tree-check::before {
+  content: "";
+  position: absolute;
+  left: 1.25rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+.tree-check::after {
+  content: "";
+  position: absolute;
+  left: 1.25rem;
+  top: 50%;
+  width: 0.6rem;
+  height: 1px;
+  background: var(--border);
+}
+.tree-check:last-child::before {
+  bottom: 50%;
+}
+
+/* Level 3: element rows — deeper indent, same connector style */
+.tree-element {
+  position: relative;
+}
+.tree-element::before {
+  content: "";
+  position: absolute;
+  left: 2.75rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+.tree-element::after {
+  content: "";
+  position: absolute;
+  left: 2.75rem;
+  top: 50%;
+  width: 0.6rem;
+  height: 1px;
+  background: var(--border);
+}
+.tree-element:last-child::before {
+  bottom: 50%;
+}
+
+/* Hover states for interactive rows */
+.tree-check-btn {
+  transition: background-color 120ms ease;
+}
+.tree-check-btn:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+.tree-element-row {
+  transition: background-color 120ms ease;
+  cursor: pointer;
+}
+.tree-element-row:hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}

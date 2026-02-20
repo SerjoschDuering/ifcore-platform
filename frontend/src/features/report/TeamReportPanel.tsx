@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { StatusBadge } from "../../components/StatusBadge";
+import { statusToHex } from "../../lib/constants";
+import { useStore } from "../../stores/store";
 import type { CheckResult, ElementResult } from "../../lib/types";
 
 /* ───────────────────────────────────────────────────────────────────────────
@@ -36,6 +38,10 @@ export function CategoryFolder({
   const errors  = checks.filter((c) => c.status === "error").length;
   const unknown = checks.filter((c) => c.status === "unknown").length;
 
+  // Count elements across all checks in this category
+  const checkIds = new Set(checks.map((c) => c.id));
+  const elemCount = elementResults.filter((e) => checkIds.has(e.check_result_id)).length;
+
   const overallStatus =
     total === 0 ? "blocked" :
     errors > 0  ? "error" :
@@ -67,6 +73,7 @@ export function CategoryFolder({
         </div>
         <div style={{ display: "flex", gap: "0.85rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>
           <span>{total} checks</span>
+          <span>{elemCount} elements</span>
           {passed  > 0 && <span style={{ color: "var(--success)" }}>{passed} pass</span>}
           {failed  > 0 && <span style={{ color: "var(--danger)"  }}>{failed} fail</span>}
           {errors  > 0 && <span style={{ color: "var(--danger)"  }}>{errors} error</span>}
@@ -82,11 +89,12 @@ export function CategoryFolder({
               No checks registered for this category.
             </p>
           ) : (
-            checks.map((cr) => (
+            checks.map((cr, i) => (
               <CheckRow
                 key={cr.id}
                 check={cr}
                 elements={elementResults.filter((e) => e.check_result_id === cr.id)}
+                isLast={i === checks.length - 1}
               />
             ))
           )}
@@ -99,13 +107,14 @@ export function CategoryFolder({
 /* ═══════════════════════════════════════════════════════════════════════════
    Mid-level: individual check  (Level 2)
    ═══════════════════════════════════════════════════════════════════════════ */
-function CheckRow({ check, elements }: { check: CheckResult; elements: ElementResult[] }) {
+function CheckRow({ check, elements, isLast }: { check: CheckResult; elements: ElementResult[]; isLast: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const hasElements = elements.length > 0;
 
   return (
-    <>
+    <div className="tree-check">
       <button
+        className="tree-check-btn"
         onClick={() => hasElements && setExpanded(!expanded)}
         style={{
           all: "unset",
@@ -130,36 +139,52 @@ function CheckRow({ check, elements }: { check: CheckResult; elements: ElementRe
         <StatusBadge status={check.status} />
         <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", minWidth: 150, textAlign: "right" }}>
           {check.summary}
+          {hasElements && (
+            <span style={{ marginLeft: "0.5rem", opacity: 0.7 }}>({elements.length} elem)</span>
+          )}
         </span>
       </button>
 
       {/* Element rows — Level 3 */}
       {expanded &&
-        elements.map((el) => (
-          <ElementRow key={el.id} el={el} />
+        elements.map((el, i) => (
+          <ElementRow key={el.id} el={el} isLast={i === elements.length - 1} />
         ))}
-    </>
+    </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Bottom-level: individual element  (Level 3)
    ═══════════════════════════════════════════════════════════════════════════ */
-function ElementRow({ el }: { el: ElementResult }) {
+function ElementRow({ el, isLast }: { el: ElementResult; isLast: boolean }) {
+  const selectElements = useStore((s) => s.selectElements);
+
+  function handleClick() {
+    if (!el.element_id) return;
+    // Select element in 3D viewer + push status-based color to highlightColorMap
+    selectElements([el.element_id]);
+    useStore.getState().setHighlightColorMap({ [el.element_id]: statusToHex(el.check_status) });
+  }
+
   return (
     <div
+      className="tree-element tree-element-row"
+      onClick={handleClick}
       style={{
         display: "grid",
-        gridTemplateColumns: "1.5rem 6px 1fr auto auto",
+        gridTemplateColumns: "6px 1fr auto auto",
         alignItems: "center",
         gap: "0.5rem",
-        padding: "0.3rem 1.25rem 0.3rem 3.75rem",
+        paddingTop: "0.3rem",
+        paddingBottom: "0.3rem",
+        paddingRight: "1.25rem",
+        paddingLeft: "3.75rem",
         background: "var(--bg)",
         borderBottom: "1px solid var(--border)",
         fontSize: "0.8rem",
       }}
     >
-      <span />
       <span
         style={{
           width: 6,

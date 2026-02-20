@@ -3,3 +3,5 @@ uvicorn[standard]==0.32.0
 ifcopenshell==0.8.1
 httpx==0.28.0
 python-multipart==0.0.20
+numpy
+requests
