@@ -290,31 +290,41 @@ export function BIMViewer() {
 
         // Ghost pass: fade non-fail elements via setOpacity + color fail elements
         if (isHighlightActive) {
-          const failGuids = [...Object.keys(hlMap)].filter(g => guidMapRef.current.has(g));
+          const hlKeys = Object.keys(hlMap);
+          const failGuids = hlKeys.filter(g => guidMapRef.current.has(g));
+          console.log("[highlight] hlMap keys:", hlKeys.length, "matched in guidMap:", failGuids.length, "guidMap size:", guidMapRef.current.size);
+          if (hlKeys.length > 0 && failGuids.length === 0) {
+            console.log("[highlight] MISMATCH — sample hlMap keys:", hlKeys.slice(0, 3));
+            console.log("[highlight] sample guidMap keys:", [...guidMapRef.current.keys()].slice(0, 3));
+          }
           const failMap: Record<string, Set<number>> = failGuids.length > 0
             ? await fragments.guidsToModelIdMap(failGuids)
             : {};
           if (seq !== colorSeqRef.current) return;
+          console.log("[highlight] failMap models:", Object.keys(failMap).length, "fragments.list size:", fragments.list.size);
           const failColor = new THREE.Color("#e62020");
           for (const [modelId, fragModel] of fragments.list) {
             try {
               await fragModel.setOpacity(undefined, 0.08);
               const failIds = failMap[modelId];
+              console.log("[highlight] model", modelId, "failIds:", failIds?.size ?? 0);
               if (failIds && failIds.size > 0) {
                 const ids = [...failIds];
                 await fragModel.resetOpacity(ids);
-                // Apply red color directly on the model
+                // Apply red highlight (full material override)
                 try {
-                  await fragModel.setColor(ids, failColor);
-                } catch {
+                  await fragModel.highlight(ids, {
+                    color: failColor, renderedFaces: 1, opacity: 1, transparent: false,
+                  } as any);
+                  console.log("[highlight] applied highlight to", ids.length, "elements");
+                } catch (e) {
+                  console.warn("[highlight] highlight() failed, trying setColor:", e);
                   try {
-                    await fragModel.highlight(ids, {
-                      color: failColor, renderedFaces: 1, opacity: 1, transparent: false,
-                    } as any);
-                  } catch { /* skip */ }
+                    await fragModel.setColor(ids, failColor);
+                  } catch (e2) { console.warn("[highlight] setColor also failed:", e2); }
                 }
               }
-            } catch { /* model may not support setOpacity */ }
+            } catch (e) { console.warn("[highlight] setOpacity failed:", e); }
           }
         } else {
           // Restore full opacity + colors when highlight mode is off
