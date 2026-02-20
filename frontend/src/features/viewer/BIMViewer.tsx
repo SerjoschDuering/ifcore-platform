@@ -288,10 +288,10 @@ export function BIMViewer() {
           await fragments.resetHighlight(allMap);
         }
 
-        // Ghost pass: make non-highlighted elements nearly transparent
+        // Ghost pass: make ALL non-fail elements nearly transparent
         if (isHighlightActive && allGuids.length > 0) {
-          const coloredGuids = new Set(Object.keys(currentColorMap));
-          const ghostGuids = allGuids.filter((g) => !coloredGuids.has(g));
+          const failGuids = new Set(Object.keys(hlMap));
+          const ghostGuids = allGuids.filter((g) => !failGuids.has(g));
           if (ghostGuids.length > 0) {
             const ghostMap = await fragments.guidsToModelIdMap(ghostGuids);
             if (seq !== colorSeqRef.current) return;
@@ -299,8 +299,10 @@ export function BIMViewer() {
           }
         }
 
+        // When highlight active, only apply fail colors (skip base colorMap)
+        const colorsToApply = isHighlightActive ? hlMap : currentColorMap;
         const byColor = new Map<string, string[]>();
-        for (const [guid, hex] of Object.entries(currentColorMap)) {
+        for (const [guid, hex] of Object.entries(colorsToApply)) {
           if (!guidMapRef.current.has(guid)) continue;
           const arr = byColor.get(hex) || [];
           arr.push(guid);
