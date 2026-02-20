@@ -3,6 +3,7 @@ import * as OBC from "@thatopen/components";
 import * as THREE from "three";
 import { useStore } from "../../stores/store";
 import { useViewer } from "./useViewer";
+import { ElementTooltip } from "./ElementTooltip";
 import webIfcWasmUrl from "web-ifc/web-ifc.wasm?url";
 import webIfcMtWasmUrl from "web-ifc/web-ifc-mt.wasm?url";
 
@@ -28,12 +29,14 @@ export function BIMViewer() {
   const loadingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const colorSeqRef = useRef(0);
+  const cameraRafRef = useRef<number | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const ifcUrl = useStore((s) => s.ifcUrl);
   const colorMap = useStore((s) => s.colorMap);
+  const highlightColorMap = useStore((s) => s.highlightColorMap);
   const selectedIds = useStore((s) => s.selectedIds);
   // Sync check results → colorMap
   useViewer();
@@ -94,7 +97,14 @@ export function BIMViewer() {
       components.init();
       components.get(OBC.Grids).create(world);
 
-      onCameraUpdate = () => fragments.core.update();
+      onCameraUpdate = () => {
+        // Camera controls emit very frequently; coalesce to one GPU update per frame.
+        if (cameraRafRef.current !== null) return;
+        cameraRafRef.current = requestAnimationFrame(() => {
+          cameraRafRef.current = null;
+          fragments.core.update();
+        });
+      };
       world.camera.controls.addEventListener("update", onCameraUpdate);
 
       canvas = world.renderer.three.domElement as HTMLCanvasElement;
@@ -131,6 +141,10 @@ export function BIMViewer() {
       if (canvas && onCanvasClick) canvas.removeEventListener("click", onCanvasClick);
       if (world?.camera?.controls && onCameraUpdate) {
         world.camera.controls.removeEventListener("update", onCameraUpdate);
+      }
+      if (cameraRafRef.current !== null) {
+        cancelAnimationFrame(cameraRafRef.current);
+        cameraRafRef.current = null;
       }
       useStore.getState().setReady(false);
       const prev = componentsRef.current;
@@ -201,28 +215,54 @@ export function BIMViewer() {
         }
         await fragments.core.update(true);
 
-        // Build GlobalId → expressID map
+        // Build GlobalId → expressID map via OBC v3 API
         try {
-          const webIfc = (ifcLoader as any).webIfc;
-          if (webIfc) {
-            const modelID = (model as any).modelID ?? 0;
-            const lines = webIfc.GetAllLines(modelID);
-            for (let i = 0; i < lines.size(); i++) {
-              const eid = lines.get(i);
-              try {
-                const props = webIfc.GetLine(modelID, eid);
-                if (props?.GlobalId?.value) guidMapRef.current.set(props.GlobalId.value, eid);
-              } catch { /* skip non-entity lines */ }
+          // OBC v3.3: use modelIdMapToGuids to discover all GUIDs
+          const allItems: Record<string, Set<number>> = {};
+          for (const [modelId, fragModel] of fragments.list) {
+            // getItemsByQuery({}) returns all localIds in the model
+            try {
+              const ids = await fragModel.getItemsByQuery({});
+              if (ids && ids.length > 0) {
+                allItems[modelId] = new Set(ids);
+              }
+            } catch { /* skip */ }
+          }
+          if (Object.keys(allItems).length > 0) {
+            const allGuids = await fragments.modelIdMapToGuids(allItems);
+            // Now map each GUID back: use guidsToModelIdMap one-by-one is expensive,
+            // so just store the GUIDs we know exist (localId lookup via guidsToModelIdMap on demand)
+            for (const guid of allGuids) {
+              guidMapRef.current.set(guid, 0); // expressID not needed — we use guidsToModelIdMap
             }
           }
-        } catch {
-          const props = (model as any).properties;
-          if (props && typeof props === "object") {
-            for (const [key, val] of Object.entries(props)) {
-              const p = val as any;
-              if (p?.GlobalId?.value) guidMapRef.current.set(p.GlobalId.value, Number(key));
+          console.log("[guidMap] built via OBC API:", guidMapRef.current.size, "GUIDs");
+        } catch (e) {
+          console.warn("[guidMap] OBC API failed, trying legacy fallback:", e);
+          // Legacy fallback: webIfc or model.properties
+          try {
+            const webIfc = (ifcLoader as any).webIfc;
+            if (webIfc) {
+              const modelID = (model as any).modelID ?? 0;
+              const lines = webIfc.GetAllLines(modelID);
+              for (let i = 0; i < lines.size(); i++) {
+                const eid = lines.get(i);
+                try {
+                  const props = webIfc.GetLine(modelID, eid);
+                  if (props?.GlobalId?.value) guidMapRef.current.set(props.GlobalId.value, eid);
+                } catch { /* skip */ }
+              }
+            }
+          } catch {
+            const props = (model as any).properties;
+            if (props && typeof props === "object") {
+              for (const [key, val] of Object.entries(props)) {
+                const p = val as any;
+                if (p?.GlobalId?.value) guidMapRef.current.set(p.GlobalId.value, Number(key));
+              }
             }
           }
+          console.log("[guidMap] legacy fallback:", guidMapRef.current.size, "GUIDs");
         }
 
         // Fit camera
@@ -257,45 +297,87 @@ export function BIMViewer() {
     const model = modelRef.current;
     if (!components || !model) return;
 
-    const currentColorMap = useStore.getState().colorMap;
-    if (Object.keys(currentColorMap).length === 0) return;
+    const hlMap = useStore.getState().highlightColorMap;
+    const currentColorMap = { ...useStore.getState().colorMap, ...hlMap };
+    const isHighlightActive = Object.keys(hlMap).length > 0;
 
     const fragments = components.get(OBC.FragmentsManager);
     const seq = ++colorSeqRef.current;
 
     (async () => {
       try {
-        const allGuids = [...guidMapRef.current.keys()];
-        if (allGuids.length > 0) {
-          const allMap = await fragments.guidsToModelIdMap(allGuids);
+        // Reset all highlights on all models
+        for (const fragModel of fragments.list.values()) {
+          try { await fragModel.resetHighlight(); } catch { /* skip */ }
+        }
+
+        // Ghost pass: fade non-fail elements via setOpacity + color fail elements
+        if (isHighlightActive) {
+          const failGuids = Object.keys(hlMap);
+          // Let OBC resolve GUIDs — don't filter through guidMapRef
+          const failMap: Record<string, Set<number>> = failGuids.length > 0
+            ? await fragments.guidsToModelIdMap(failGuids)
+            : {};
           if (seq !== colorSeqRef.current) return;
-          await fragments.resetHighlight(allMap);
+          const matchedModels = Object.keys(failMap).length;
+          const totalFailIds = Object.values(failMap).reduce((n, s) => n + s.size, 0);
+          console.log("[highlight]", failGuids.length, "fail GUIDs →", totalFailIds, "localIds across", matchedModels, "models");
+          const failColor = new THREE.Color("#e62020");
+          for (const [modelId, fragModel] of fragments.list) {
+            try {
+              await fragModel.setOpacity(undefined, 0.08);
+              const failIds = failMap[modelId];
+              if (failIds && failIds.size > 0) {
+                const ids = [...failIds];
+                await fragModel.resetOpacity(ids);
+                await fragModel.highlight(ids, {
+                  color: failColor, renderedFaces: 1, opacity: 1, transparent: false,
+                } as any);
+                console.log("[highlight] colored", ids.length, "elements in model", modelId);
+              }
+            } catch (e) { console.warn("[highlight] per-model error:", e); }
+          }
+        } else {
+          // Restore full opacity + colors when highlight mode is off
+          for (const fragModel of fragments.list.values()) {
+            try { await fragModel.resetOpacity(undefined); } catch { /* skip */ }
+            try { await fragModel.resetColor(undefined); } catch { /* skip */ }
+          }
+          // Apply base colorMap — pass all GUIDs to OBC directly
+          const byColor = new Map<string, string[]>();
+          for (const [guid, hex] of Object.entries(currentColorMap)) {
+            const arr = byColor.get(hex) || [];
+            arr.push(guid);
+            byColor.set(hex, arr);
+          }
+          for (const [hex, guids] of byColor) {
+            if (seq !== colorSeqRef.current) return;
+            const map = await fragments.guidsToModelIdMap(guids);
+            await fragments.highlight(
+              { color: new THREE.Color(hex), renderedFaces: 1, opacity: 1, transparent: false } as any,
+              map
+            );
+          }
         }
 
-        const byColor = new Map<string, string[]>();
-        for (const [guid, hex] of Object.entries(currentColorMap)) {
-          if (!guidMapRef.current.has(guid)) continue;
-          const arr = byColor.get(hex) || [];
-          arr.push(guid);
-          byColor.set(hex, arr);
-        }
-
-        for (const [hex, guids] of byColor) {
-          if (seq !== colorSeqRef.current) return;
-          const c = new THREE.Color(hex);
-          const map = await fragments.guidsToModelIdMap(guids);
-          await fragments.highlight(
-            { r: Math.round(c.r * 255), g: Math.round(c.g * 255), b: Math.round(c.b * 255), opacity: hex === "#e62020" ? 1 : 0.2 },
-            map
-          );
-        }
-
+        // Selection highlight (always applies)
         if (seq !== colorSeqRef.current) return;
-        const selectedGuids = [...useStore.getState().selectedIds].filter((g) => guidMapRef.current.has(g));
+        const selectedGuids = [...useStore.getState().selectedIds];
         if (selectedGuids.length > 0) {
-          const map = await fragments.guidsToModelIdMap(selectedGuids);
-          await fragments.highlight({ r: 41, g: 151, b: 255, opacity: 1 }, map);
+          const selMap = await fragments.guidsToModelIdMap(selectedGuids);
+          for (const [modelId, fragModel] of fragments.list) {
+            const selIds = selMap[modelId];
+            if (selIds && selIds.size > 0) {
+              try {
+                await fragModel.highlight([...selIds], {
+                  color: new THREE.Color(0x2997ff), renderedFaces: 1, opacity: 1, transparent: false,
+                } as any);
+              } catch { /* skip */ }
+            }
+          }
         }
+
+        await fragments.core.update(true);
       } catch {
         // Fallback: v2 fragment-level coloring
         try {
@@ -324,33 +406,44 @@ export function BIMViewer() {
   }
 
   // React to colorMap / selection changes
-  useEffect(() => { applyColors(); }, [colorMap, selectedIds]);
+  useEffect(() => { applyColors(); }, [colorMap, highlightColorMap, selectedIds]);
 
   if (error) {
-    return <p style={{ color: "var(--error)" }}>{error}</p>;
+    return (
+      <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", background: "rgba(8, 12, 22, 0.85)" }}>
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1rem",
+        }}>
+          <div className="glass-panel" style={{ maxWidth: 360, padding: "1rem", textAlign: "center" }}>
+            <h3 style={{ margin: 0, marginBottom: "0.4rem", fontSize: "1rem" }}>Model could not be loaded</h3>
+            <p style={{ margin: 0, marginBottom: "0.75rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>
+              {error}. Check file format and storage link, then retry upload.
+            </p>
+            <button className="btn btn-primary" onClick={() => setError(null)}>Dismiss</button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ position: "relative", height: "70vh", background: "var(--surface)", borderRadius: 8, overflow: "hidden" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", background: "rgba(8, 12, 22, 0.85)", overflow: "hidden" }}>
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
       {isLoading && (
         <div style={{
           position: "absolute", inset: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-          background: "rgba(0,0,0,0.3)", color: "white", fontSize: "0.875rem",
+          background: "rgba(4, 8, 18, 0.45)", color: "white", fontSize: "0.875rem",
         }}>
-          Loading IFC model...
+          <span className="glass-chip" style={{ color: "var(--text)" }}>Loading IFC model...</span>
         </div>
       )}
-      {selectedIds.size > 0 && (
-        <div style={{
-          position: "absolute", top: 8, left: 8,
-          background: "rgba(0, 0, 0, 0.6)", color: "white",
-          padding: "0.35rem 0.5rem", borderRadius: 4, fontSize: "0.75rem",
-        }}>
-          Selected: {[...selectedIds][0]}
-        </div>
-      )}
+      <ElementTooltip />
     </div>
   );
 }

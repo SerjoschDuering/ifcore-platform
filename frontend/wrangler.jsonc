@@ -1,6 +1,7 @@
 {
   "name": "ifcore-platform",
   "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
   "main": "./worker/index.ts",
   "assets": {
     "directory": "./dist",

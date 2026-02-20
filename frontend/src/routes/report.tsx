@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useStore } from "../stores/store";
-import { CategoryFolder, CATEGORIES } from "../features/report/TeamReportPanel";
+import { CategoryFolder } from "../features/report/TeamReportPanel";
+import { CATEGORIES } from "../lib/constants";
 import type { CheckResult } from "../lib/types";
 
 export const Route = createFileRoute("/report")({
   beforeLoad: () => {
     useStore.getState().setViewerVisible(false);
+    useStore.getState().clearHighlights();
   },
   component: ReportPage,
 });
@@ -23,7 +25,7 @@ function ReportPage() {
 
   if (checkResults.length === 0) {
     return (
-      <div className="container">
+      <div >
         <h1 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>Compliance Report</h1>
         <p style={{ color: "var(--text-muted)" }}>
           No check results yet. Upload a file and run checks first.
@@ -45,7 +47,8 @@ function ReportPage() {
   const passed  = checkResults.filter((c) => c.status === "pass").length;
   const failed  = checkResults.filter((c) => c.status === "fail").length;
   const errors  = checkResults.filter((c) => c.status === "error").length;
-  const other   = total - passed - failed - errors;
+  const running = checkResults.filter((c) => c.status === "running").length;
+  const other   = total - passed - failed - errors - running;
 
   /* ── Teams not in the category list (demo, future teams, …) ─ */
   const mappedTeams = new Set(CATEGORIES.map((c) => c.team));
@@ -54,7 +57,7 @@ function ReportPage() {
     .sort((a, b) => a[0].localeCompare(b[0]));
 
   return (
-    <div className="container">
+    <div >
       <h1 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>Compliance Report</h1>
 
       {/* Summary cards */}
@@ -69,7 +72,8 @@ function ReportPage() {
         <StatCard label="Total Checks" value={total}  color="var(--text)" />
         <StatCard label="Passed"       value={passed} color="var(--success)" />
         <StatCard label="Failed"       value={failed} color="var(--danger)" />
-        <StatCard label="Errors"       value={errors} color="var(--danger)" />
+        <StatCard label="Errors"       value={errors} color="var(--warning)" />
+        <StatCard label="Running"      value={running} color="var(--accent)" />
         <StatCard label="Other"        value={other}  color="var(--text-muted)" />
       </div>
 

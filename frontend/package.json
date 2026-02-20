@@ -15,9 +15,12 @@
     "@thatopen/components": "3.3.0",
     "@thatopen/components-front": "3.3.0",
     "@thatopen/fragments": "3.3.0",
+    "better-auth": "^1.4.18",
+    "drizzle-orm": "^0.45.1",
     "hono": "^4.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "recharts": "^3.7.0",
     "three": "^0.175.0",
     "web-ifc": "0.0.75",
     "zustand": "^5.0.0"

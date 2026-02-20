@@ -12,8 +12,13 @@ export async function insertProject(db: D1Database, p: {
   ).run();
 }
 
-export async function getProjects(db: D1Database) {
-  return db.prepare("SELECT * FROM projects ORDER BY created_at DESC").all();
+export async function getProjects(db: D1Database, userId?: string | null) {
+  if (userId) {
+    // Logged-in: own projects + shared (null user_id) projects
+    return db.prepare("SELECT * FROM projects WHERE user_id = ? OR user_id IS NULL ORDER BY created_at DESC").bind(userId).all();
+  }
+  // Anonymous: only shared projects
+  return db.prepare("SELECT * FROM projects WHERE user_id IS NULL ORDER BY created_at DESC").all();
 }
 
 export async function getProject(db: D1Database, id: string) {
@@ -44,6 +49,15 @@ export async function getJob(db: D1Database, id: string) {
 
 export async function getJobsByProject(db: D1Database, projectId: string) {
   return db.prepare("SELECT * FROM jobs WHERE project_id = ? ORDER BY started_at DESC").bind(projectId).all();
+}
+
+export async function getUserStats(db: D1Database, userId: string) {
+  // Count projects visible to this user (own + shared)
+  const projects = await db.prepare("SELECT COUNT(*) as cnt FROM projects WHERE user_id = ? OR user_id IS NULL").bind(userId).first<{ cnt: number }>();
+  const checks = await db.prepare(
+    "SELECT COUNT(*) as cnt FROM check_results WHERE project_id IN (SELECT id FROM projects WHERE user_id = ? OR user_id IS NULL)"
+  ).bind(userId).first<{ cnt: number }>();
+  return { project_count: projects?.cnt ?? 0, check_count: checks?.cnt ?? 0 };
 }
 
 export async function insertCheckResults(db: D1Database, checkResults: any[], elementResults: any[]) {

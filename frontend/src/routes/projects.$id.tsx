@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ResultsTable } from "../features/checks/ResultsTable";
-import { CheckRunner } from "../features/checks/CheckRunner";
 import { useStore } from "../stores/store";
 import { getProject, getJob } from "../lib/api";
 import type { Job } from "../lib/types";
@@ -16,7 +15,7 @@ export const Route = createFileRoute("/projects/$id")({
     store.showAll(); // clear hidden elements from previous project
 
     // Set active project for viewer
-    store.setActiveProjectId(params.id);
+    store.setActiveProject(params.id);
 
     const data = await getProject(params.id);
     const { projects, setProjects } = useStore.getState();
@@ -51,13 +50,10 @@ export const Route = createFileRoute("/projects/$id")({
     return data;
   },
   component: () => {
-    const { id } = Route.useParams();
-    const data = Route.useLoaderData();
-    const project = useStore((s) => s.projects.find((p) => p.id === id)) ?? data;
+    const checkResults = useStore((s) => s.checkResults);
+    if (checkResults.length === 0) return null;
     return (
-      <div>
-        <h1 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>{project?.name || "Project"}</h1>
-        <CheckRunner projectId={id} fileUrl={project?.file_url || ""} />
+      <div style={{ padding: "0.25rem 0.5rem 0.5rem" }}>
         <ResultsTable />
       </div>
     );

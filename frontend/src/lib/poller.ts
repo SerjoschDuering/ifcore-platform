@@ -6,17 +6,25 @@ let timer: ReturnType<typeof setTimeout> | null = null;
 export function startPolling() {
   if (timer) return;
   async function tick() {
-    const { jobs, updateJob } = useStore.getState();
-    const running = Object.values(jobs).filter((j) => j.status === "running" || j.status === "pending");
+    const running = Object.values(useStore.getState().jobs)
+      .filter((j) => j.status === "running" || j.status === "pending");
     for (const job of running) {
       try {
-        const prev = jobs[job.id];
+        const prev = useStore.getState().jobs[job.id];
         const updated = await getJob(job.id);
-        updateJob(updated.id, updated);
+
+        // Skip update if nothing changed
+        if (prev && prev.status === updated.status && prev.progress === updated.progress) continue;
+
         if (updated.status === "done" && prev?.status !== "done") {
-          const { setCheckResults, setElementResults } = useStore.getState();
-          if (updated.check_results) setCheckResults(updated.check_results);
-          if (updated.element_results) setElementResults(updated.element_results);
+          // Batch all updates into a single store set to avoid cascading re-renders
+          useStore.setState((s) => ({
+            jobs: { ...s.jobs, [updated.id]: { ...s.jobs[updated.id], ...updated } },
+            ...(updated.check_results ? { checkResults: updated.check_results } : {}),
+            ...(updated.element_results ? { elementResults: updated.element_results } : {}),
+          }));
+        } else {
+          useStore.getState().updateJob(updated.id, updated);
         }
       } catch (err) {
         if (import.meta.env.DEV) console.warn("[poller] job fetch failed:", err);

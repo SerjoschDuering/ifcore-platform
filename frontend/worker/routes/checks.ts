@@ -4,15 +4,18 @@ import { insertJob, updateJob, getJob, insertCheckResults } from "../lib/db";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// Read file from R2 and encode as base64
+// Read file from R2 and encode as base64 (chunked to avoid OOM on large files)
 async function readR2AsBase64(storage: R2Bucket, key: string): Promise<string> {
   const obj = await storage.get(key);
   if (!obj) throw new Error(`R2 object not found: ${key}`);
   const bytes = await obj.arrayBuffer();
   const uint8 = new Uint8Array(bytes);
-  let binary = "";
-  for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
-  return btoa(binary);
+  const CHUNK = 0x8000; // 32KB chunks — safe for String.fromCharCode.apply
+  const parts: string[] = [];
+  for (let i = 0; i < uint8.length; i += CHUNK) {
+    parts.push(String.fromCharCode.apply(null, uint8.subarray(i, i + CHUNK) as unknown as number[]));
+  }
+  return btoa(parts.join(""));
 }
 
 app.post("/run", async (c) => {
@@ -37,7 +40,7 @@ app.post("/run", async (c) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ifc_b64, project_id }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(15000),
     });
     if (!resp.ok) {
       await updateJob(c.env.DB, jobId, { status: "error", completed_at: Date.now() });
@@ -45,6 +48,10 @@ app.post("/run", async (c) => {
     }
     const data: any = await resp.json();
     hfJobId = data.job_id;
+    if (!hfJobId) {
+      await updateJob(c.env.DB, jobId, { status: "error", completed_at: Date.now() });
+      return c.json({ job_id: jobId, status: "error", error: "HF returned no job_id" }, 502);
+    }
   } catch {
     await updateJob(c.env.DB, jobId, { status: "error", completed_at: Date.now() });
     return c.json({ job_id: jobId, status: "error", error: "HF Space unreachable" }, 502);
@@ -67,8 +74,14 @@ app.get("/jobs/:id", async (c) => {
       if (hfResp.ok) {
         const hfData: any = await hfResp.json();
         if (hfData.status === "done") {
-          await insertCheckResults(c.env.DB, hfData.check_results || [], hfData.element_results || []);
+          // Mark done FIRST to prevent duplicate inserts from concurrent polls
           await updateJob(c.env.DB, job.id, { status: "done", completed_at: Date.now() });
+          // Check if results already exist (race guard)
+          const existing = await c.env.DB.prepare("SELECT COUNT(*) as cnt FROM check_results WHERE job_id = ?").bind(job.id).first<{ cnt: number }>();
+          if (!existing?.cnt) {
+            const remappedChecks = (hfData.check_results || []).map((cr: any) => ({ ...cr, job_id: job.id }));
+            await insertCheckResults(c.env.DB, remappedChecks, hfData.element_results || []);
+          }
           (job as any).status = "done";
         } else if (hfData.status === "error") {
           await updateJob(c.env.DB, job.id, { status: "error", completed_at: Date.now() });
@@ -81,14 +94,12 @@ app.get("/jobs/:id", async (c) => {
   }
 
   const checks = await c.env.DB.prepare("SELECT * FROM check_results WHERE job_id = ?").bind(job.id).all();
-  const elementIds = checks.results?.map((cr: any) => cr.id) || [];
-  let elements = { results: [] as any[] };
-  if (elementIds.length > 0) {
-    const placeholders = elementIds.map(() => "?").join(",");
-    elements = await c.env.DB.prepare(`SELECT * FROM element_results WHERE check_result_id IN (${placeholders})`).bind(...elementIds).all();
-  }
+  // Use subquery instead of IN(...) to avoid D1 bind param limit
+  const elements = await c.env.DB.prepare(
+    "SELECT * FROM element_results WHERE check_result_id IN (SELECT id FROM check_results WHERE job_id = ?)"
+  ).bind(job.id).all();
 
-  return c.json({ ...job, check_results: checks.results, element_results: elements.results });
+  return c.json({ ...job, check_results: checks.results ?? [], element_results: elements.results ?? [] });
 });
 
 export default app;
