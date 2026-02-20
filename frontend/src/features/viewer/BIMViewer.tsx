@@ -288,56 +288,77 @@ export function BIMViewer() {
           await fragments.resetHighlight(allMap);
         }
 
-        // Ghost pass: fade non-fail elements via setOpacity
+        // Ghost pass: fade non-fail elements via setOpacity + color fail elements
         if (isHighlightActive) {
           const failGuids = [...Object.keys(hlMap)].filter(g => guidMapRef.current.has(g));
           const failMap: Record<string, Set<number>> = failGuids.length > 0
             ? await fragments.guidsToModelIdMap(failGuids)
             : {};
           if (seq !== colorSeqRef.current) return;
+          const failColor = new THREE.Color("#e62020");
           for (const [modelId, fragModel] of fragments.list) {
             try {
               await fragModel.setOpacity(undefined, 0.08);
               const failIds = failMap[modelId];
               if (failIds && failIds.size > 0) {
-                await fragModel.resetOpacity([...failIds]);
+                const ids = [...failIds];
+                await fragModel.resetOpacity(ids);
+                // Apply red color directly on the model
+                try {
+                  await fragModel.setColor(ids, failColor);
+                } catch {
+                  try {
+                    await fragModel.highlight(ids, {
+                      color: failColor, renderedFaces: 1, opacity: 1, transparent: false,
+                    } as any);
+                  } catch { /* skip */ }
+                }
               }
             } catch { /* model may not support setOpacity */ }
           }
         } else {
-          // Restore full opacity when highlight mode is off
+          // Restore full opacity + colors when highlight mode is off
           for (const fragModel of fragments.list.values()) {
             try { await fragModel.resetOpacity(undefined); } catch { /* skip */ }
+            try { await fragModel.resetColor(undefined); } catch { /* skip */ }
+          }
+          // Apply base colorMap
+          const byColor = new Map<string, string[]>();
+          for (const [guid, hex] of Object.entries(currentColorMap)) {
+            if (!guidMapRef.current.has(guid)) continue;
+            const arr = byColor.get(hex) || [];
+            arr.push(guid);
+            byColor.set(hex, arr);
+          }
+          for (const [hex, guids] of byColor) {
+            if (seq !== colorSeqRef.current) return;
+            const map = await fragments.guidsToModelIdMap(guids);
+            await fragments.highlight(
+              { color: new THREE.Color(hex), renderedFaces: 1, opacity: 1, transparent: false } as any,
+              map
+            );
           }
         }
 
-        // When highlight active, only apply fail colors (skip base colorMap)
-        const colorsToApply = isHighlightActive ? hlMap : currentColorMap;
-        const byColor = new Map<string, string[]>();
-        for (const [guid, hex] of Object.entries(colorsToApply)) {
-          if (!guidMapRef.current.has(guid)) continue;
-          const arr = byColor.get(hex) || [];
-          arr.push(guid);
-          byColor.set(hex, arr);
-        }
-
-        for (const [hex, guids] of byColor) {
-          if (seq !== colorSeqRef.current) return;
-          const map = await fragments.guidsToModelIdMap(guids);
-          await fragments.highlight(
-            { color: new THREE.Color(hex), renderedFaces: 1, opacity: 1, transparent: false } as any,
-            map
-          );
-        }
-
+        // Selection highlight (always applies)
         if (seq !== colorSeqRef.current) return;
         const selectedGuids = [...useStore.getState().selectedIds].filter((g) => guidMapRef.current.has(g));
         if (selectedGuids.length > 0) {
-          const map = await fragments.guidsToModelIdMap(selectedGuids);
-          await fragments.highlight(
-            { color: new THREE.Color(0x2997ff), renderedFaces: 1, opacity: 1, transparent: false } as any,
-            map
-          );
+          const selMap = await fragments.guidsToModelIdMap(selectedGuids);
+          for (const [modelId, fragModel] of fragments.list) {
+            const selIds = selMap[modelId];
+            if (selIds && selIds.size > 0) {
+              try {
+                await fragModel.setColor([...selIds], new THREE.Color(0x2997ff));
+              } catch {
+                try {
+                  await fragModel.highlight([...selIds], {
+                    color: new THREE.Color(0x2997ff), renderedFaces: 1, opacity: 1, transparent: false,
+                  } as any);
+                } catch { /* skip */ }
+              }
+            }
+          }
         }
 
         await fragments.core.update(true);
