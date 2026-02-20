@@ -22,6 +22,7 @@
     }
   ],
   "vars": {
-    "HF_SPACE_URL": "https://serjd-ifcore-platform.hf.space"
+    "HF_SPACE_URL": "https://serjd-ifcore-platform.hf.space",
+    "BETTER_AUTH_URL": "http://localhost:5173"
   }
 }

@@ -6,11 +6,13 @@ import upload from "./routes/upload";
 import checks from "./routes/checks";
 import projects from "./routes/projects";
 import files from "./routes/files";
+import auth from "./routes/auth";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.use("/api/*", cors({ origin: "*" }));
 app.route("/api", health);
+app.route("/api/auth", auth);
 app.route("/api/upload", upload);
 app.route("/api/checks", checks);
 app.route("/api/projects", projects);

@@ -1,0 +1,14 @@
+# Local Development Environment Variables
+# Copy this to frontend/.dev.vars and fill in your values
+# .dev.vars is gitignored — never commit secrets
+
+# HuggingFace Space URL (for backend orchestrator)
+HF_SPACE_URL=http://localhost:7860
+
+# Better Auth Configuration
+# BETTER_AUTH_SECRET: 32+ char random string (for JWT signing)
+# In production, set this via: wrangler secret put BETTER_AUTH_SECRET
+BETTER_AUTH_SECRET=dev-secret-change-in-production-12345678
+
+# BETTER_AUTH_URL: base URL for the auth service (must match your frontend URL)
+BETTER_AUTH_URL=http://localhost:5173
