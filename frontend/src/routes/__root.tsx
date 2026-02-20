@@ -16,11 +16,19 @@ function RootComponent() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const isAuthView = pathname.startsWith("/login") || pathname.startsWith("/profile");
   const isWorkspace =
     WORKSPACE_PATHS.some((p) => pathname.startsWith(p)) &&
     !isExactProjectsList(pathname);
 
   if (!isWorkspace) {
+    if (isAuthView) {
+      return (
+        <div style={{ minHeight: "100vh" }}>
+          <Outlet />
+        </div>
+      );
+    }
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         <Navbar />
@@ -101,43 +109,77 @@ function RootComponent() {
 
 function CenterStage() {
   const hasResults = useStore((s) => s.checkResults.length > 0);
-  const [dockOpen, setDockOpen] = useState(true);
+  const [dockMode, setDockMode] = useState<"collapsed" | "open" | "large">("collapsed");
+
+  const isDockVisible = dockMode !== "collapsed";
+  const isDockLarge = dockMode === "large";
+  const dockHeight = isDockLarge ? "75%" : "34%";
+  const dockMaxHeight = isDockLarge ? undefined : 280;
+  const dockControlBottom =
+    dockMode === "collapsed"
+      ? 10
+      : dockMode === "large"
+      ? "calc(75% - 14px)"
+      : "calc(min(34%, 280px) - 14px)";
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", borderRadius: "var(--radius-lg)" }}>
       {/* Viewer fills entire center area */}
       <ViewerPanel />
 
-      {/* Toggle — sticks to bottom center, above the dock */}
-      <button
-        onClick={() => setDockOpen((o) => !o)}
-        className="toolbar-btn"
+      {/* Dock controls */}
+      <div
         style={{
           position: "absolute",
-          bottom: dockOpen ? "calc(min(34%, 280px) - 14px)" : 10,
+          bottom: dockControlBottom,
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 20,
-          background: "rgba(14, 20, 34, 0.9)",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.4rem",
           transition: "all 400ms cubic-bezier(0.4, 0, 0.2, 1)",
-          boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
-          fontSize: "0.74rem",
-          padding: "0.42rem 0.78rem",
-          borderRadius: 999,
         }}
       >
-        {dockOpen ? "Hide Insights" : `Show Insights${hasResults ? " ●" : ""}`}
-      </button>
+        <button
+          onClick={() => setDockMode((m) => (m === "collapsed" ? "open" : "collapsed"))}
+          className="toolbar-btn"
+          style={{
+            background: "rgba(14, 20, 34, 0.9)",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+            fontSize: "0.74rem",
+            padding: "0.42rem 0.78rem",
+            borderRadius: 999,
+          }}
+        >
+          {dockMode === "collapsed" ? `Show Insights${hasResults ? " ●" : ""}` : "Hide Insights"}
+        </button>
+        {isDockVisible && (
+          <button
+            onClick={() => setDockMode((m) => (m === "large" ? "open" : "large"))}
+            className="toolbar-btn"
+            style={{
+              background: "rgba(14, 20, 34, 0.9)",
+              boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+              fontSize: "0.74rem",
+              padding: "0.42rem 0.78rem",
+              borderRadius: 999,
+            }}
+          >
+            {isDockLarge ? "Open Mode" : "Large Mode"}
+          </button>
+        )}
+      </div>
 
       {/* Floating glass dock — conditionally rendered */}
-      {dockOpen && (
+      {isDockVisible && (
         <div style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
-          height: "34%",
-          maxHeight: 280,
+          height: dockHeight,
+          maxHeight: dockMaxHeight,
           zIndex: 10,
           animation: "fadeIn 200ms ease-out",
           padding: "0 6px 6px",
