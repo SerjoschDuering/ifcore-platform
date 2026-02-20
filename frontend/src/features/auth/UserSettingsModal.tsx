@@ -1,16 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { authClient, useSession } from "../../lib/auth-client";
-import { useStore } from "../../stores/store";
 
 type UserSettingsModalProps = {
   onClose: () => void;
 };
 
+type Stats = { project_count: number; check_count: number };
+
 export function UserSettingsModal({ onClose }: UserSettingsModalProps) {
   const navigate = useNavigate();
   const { data: session } = useSession();
-  const projects = useStore((s) => s.projects);
+  const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -20,8 +21,15 @@ export function UserSettingsModal({ onClose }: UserSettingsModalProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  useEffect(() => {
+    if (!session?.user) return;
+    fetch("/api/stats", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setStats(data))
+      .catch(() => {});
+  }, [session?.user?.id]);
+
   const user = session?.user;
-  const userProjects = user ? projects.filter((p) => (p as any).user_id === user.id) : [];
 
   async function handleLogout() {
     await authClient.signOut();
@@ -70,7 +78,17 @@ export function UserSettingsModal({ onClose }: UserSettingsModalProps) {
             <Field label="Name" value={user.name || "—"} />
             <Field label="Email" value={user.email || "—"} />
             <Field label="Team" value={(user as any).team || "—"} />
-            <Field label="Projects" value={String(userProjects.length)} />
+
+            {/* Stats */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "0.5rem",
+              marginTop: "0.25rem",
+            }}>
+              <StatCard label="Projects" value={stats?.project_count} />
+              <StatCard label="Checks Run" value={stats?.check_count} />
+            </div>
 
             <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
               <button className="btn btn-ghost" style={{ color: "#ff9f9f", borderColor: "rgba(255,120,120,0.35)" }} onClick={handleLogout}>
@@ -80,6 +98,28 @@ export function UserSettingsModal({ onClose }: UserSettingsModalProps) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value?: number }) {
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid var(--border)",
+      borderRadius: 12,
+      padding: "0.65rem 0.75rem",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 2,
+    }}>
+      <span style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--accent)" }}>
+        {value != null ? value : "…"}
+      </span>
+      <span style={{ fontSize: "0.7rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)" }}>
+        {label}
+      </span>
     </div>
   );
 }

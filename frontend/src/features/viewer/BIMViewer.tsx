@@ -271,8 +271,10 @@ export function BIMViewer() {
     const model = modelRef.current;
     if (!components || !model) return;
 
-    const currentColorMap = { ...useStore.getState().colorMap, ...useStore.getState().highlightColorMap };
-    if (Object.keys(currentColorMap).length === 0) return;
+    const hlMap = useStore.getState().highlightColorMap;
+    const currentColorMap = { ...useStore.getState().colorMap, ...hlMap };
+    const isHighlightActive = Object.keys(hlMap).length > 0;
+    if (Object.keys(currentColorMap).length === 0 && !isHighlightActive) return;
 
     const fragments = components.get(OBC.FragmentsManager);
     const seq = ++colorSeqRef.current;
@@ -284,6 +286,17 @@ export function BIMViewer() {
           const allMap = await fragments.guidsToModelIdMap(allGuids);
           if (seq !== colorSeqRef.current) return;
           await fragments.resetHighlight(allMap);
+        }
+
+        // Ghost pass: make non-highlighted elements nearly transparent
+        if (isHighlightActive && allGuids.length > 0) {
+          const coloredGuids = new Set(Object.keys(currentColorMap));
+          const ghostGuids = allGuids.filter((g) => !coloredGuids.has(g));
+          if (ghostGuids.length > 0) {
+            const ghostMap = await fragments.guidsToModelIdMap(ghostGuids);
+            if (seq !== colorSeqRef.current) return;
+            await fragments.highlight({ r: 120, g: 130, b: 150, opacity: 0.08 }, ghostMap);
+          }
         }
 
         const byColor = new Map<string, string[]>();

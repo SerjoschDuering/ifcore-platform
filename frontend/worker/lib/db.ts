@@ -51,6 +51,14 @@ export async function getJobsByProject(db: D1Database, projectId: string) {
   return db.prepare("SELECT * FROM jobs WHERE project_id = ? ORDER BY started_at DESC").bind(projectId).all();
 }
 
+export async function getUserStats(db: D1Database, userId: string) {
+  const projects = await db.prepare("SELECT COUNT(*) as cnt FROM projects WHERE user_id = ?").bind(userId).first<{ cnt: number }>();
+  const checks = await db.prepare(
+    "SELECT COUNT(*) as cnt FROM check_results WHERE project_id IN (SELECT id FROM projects WHERE user_id = ?)"
+  ).bind(userId).first<{ cnt: number }>();
+  return { project_count: projects?.cnt ?? 0, check_count: checks?.cnt ?? 0 };
+}
+
 export async function insertCheckResults(db: D1Database, checkResults: any[], elementResults: any[]) {
   const stmts = [
     ...checkResults.map(cr =>

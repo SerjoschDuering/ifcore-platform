@@ -8,6 +8,7 @@ import checks from "./routes/checks";
 import projects from "./routes/projects";
 import files from "./routes/files";
 import chat from "./routes/chat";
+import stats from "./routes/stats";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -45,5 +46,6 @@ app.route("/api/checks", checks);
 app.route("/api/projects", projects);
 app.route("/api/files", files);
 app.route("/api/chat", chat);
+app.route("/api/stats", stats);
 
 export default app;
