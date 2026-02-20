@@ -3,6 +3,7 @@ import * as OBC from "@thatopen/components";
 import * as THREE from "three";
 import { useStore } from "../../stores/store";
 import { useViewer } from "./useViewer";
+import { ElementTooltip } from "./ElementTooltip";
 import webIfcWasmUrl from "web-ifc/web-ifc.wasm?url";
 import webIfcMtWasmUrl from "web-ifc/web-ifc-mt.wasm?url";
 
@@ -28,6 +29,7 @@ export function BIMViewer() {
   const loadingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const colorSeqRef = useRef(0);
+  const cameraRafRef = useRef<number | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +97,14 @@ export function BIMViewer() {
       components.init();
       components.get(OBC.Grids).create(world);
 
-      onCameraUpdate = () => fragments.core.update();
+      onCameraUpdate = () => {
+        // Camera controls emit very frequently; coalesce to one GPU update per frame.
+        if (cameraRafRef.current !== null) return;
+        cameraRafRef.current = requestAnimationFrame(() => {
+          cameraRafRef.current = null;
+          fragments.core.update();
+        });
+      };
       world.camera.controls.addEventListener("update", onCameraUpdate);
 
       canvas = world.renderer.three.domElement as HTMLCanvasElement;
@@ -132,6 +141,10 @@ export function BIMViewer() {
       if (canvas && onCanvasClick) canvas.removeEventListener("click", onCanvasClick);
       if (world?.camera?.controls && onCameraUpdate) {
         world.camera.controls.removeEventListener("update", onCameraUpdate);
+      }
+      if (cameraRafRef.current !== null) {
+        cancelAnimationFrame(cameraRafRef.current);
+        cameraRafRef.current = null;
       }
       useStore.getState().setReady(false);
       const prev = componentsRef.current;
@@ -362,16 +375,7 @@ export function BIMViewer() {
           <span className="glass-chip" style={{ color: "var(--text)" }}>Loading IFC model...</span>
         </div>
       )}
-      {selectedIds.size > 0 && (
-        <div style={{
-          position: "absolute", top: 8, left: 8,
-          background: "rgba(16, 25, 40, 0.72)", color: "white",
-          padding: "0.35rem 0.5rem", borderRadius: 999, fontSize: "0.75rem",
-          border: "1px solid var(--border)",
-        }}>
-          Selected: {[...selectedIds][0]}
-        </div>
-      )}
+      <ElementTooltip />
     </div>
   );
 }
