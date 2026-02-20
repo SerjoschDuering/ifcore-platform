@@ -300,7 +300,6 @@ export function BIMViewer() {
     const hlMap = useStore.getState().highlightColorMap;
     const currentColorMap = { ...useStore.getState().colorMap, ...hlMap };
     const isHighlightActive = Object.keys(hlMap).length > 0;
-    if (Object.keys(currentColorMap).length === 0 && !isHighlightActive) return;
 
     const fragments = components.get(OBC.FragmentsManager);
     const seq = ++colorSeqRef.current;
