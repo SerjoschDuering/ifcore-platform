@@ -215,28 +215,54 @@ export function BIMViewer() {
         }
         await fragments.core.update(true);
 
-        // Build GlobalId → expressID map
+        // Build GlobalId → expressID map via OBC v3 API
         try {
-          const webIfc = (ifcLoader as any).webIfc;
-          if (webIfc) {
-            const modelID = (model as any).modelID ?? 0;
-            const lines = webIfc.GetAllLines(modelID);
-            for (let i = 0; i < lines.size(); i++) {
-              const eid = lines.get(i);
-              try {
-                const props = webIfc.GetLine(modelID, eid);
-                if (props?.GlobalId?.value) guidMapRef.current.set(props.GlobalId.value, eid);
-              } catch { /* skip non-entity lines */ }
+          // OBC v3.3: use modelIdMapToGuids to discover all GUIDs
+          const allItems: Record<string, Set<number>> = {};
+          for (const [modelId, fragModel] of fragments.list) {
+            // getItemsByQuery({}) returns all localIds in the model
+            try {
+              const ids = await fragModel.getItemsByQuery({});
+              if (ids && ids.length > 0) {
+                allItems[modelId] = new Set(ids);
+              }
+            } catch { /* skip */ }
+          }
+          if (Object.keys(allItems).length > 0) {
+            const allGuids = await fragments.modelIdMapToGuids(allItems);
+            // Now map each GUID back: use guidsToModelIdMap one-by-one is expensive,
+            // so just store the GUIDs we know exist (localId lookup via guidsToModelIdMap on demand)
+            for (const guid of allGuids) {
+              guidMapRef.current.set(guid, 0); // expressID not needed — we use guidsToModelIdMap
             }
           }
-        } catch {
-          const props = (model as any).properties;
-          if (props && typeof props === "object") {
-            for (const [key, val] of Object.entries(props)) {
-              const p = val as any;
-              if (p?.GlobalId?.value) guidMapRef.current.set(p.GlobalId.value, Number(key));
+          console.log("[guidMap] built via OBC API:", guidMapRef.current.size, "GUIDs");
+        } catch (e) {
+          console.warn("[guidMap] OBC API failed, trying legacy fallback:", e);
+          // Legacy fallback: webIfc or model.properties
+          try {
+            const webIfc = (ifcLoader as any).webIfc;
+            if (webIfc) {
+              const modelID = (model as any).modelID ?? 0;
+              const lines = webIfc.GetAllLines(modelID);
+              for (let i = 0; i < lines.size(); i++) {
+                const eid = lines.get(i);
+                try {
+                  const props = webIfc.GetLine(modelID, eid);
+                  if (props?.GlobalId?.value) guidMapRef.current.set(props.GlobalId.value, eid);
+                } catch { /* skip */ }
+              }
+            }
+          } catch {
+            const props = (model as any).properties;
+            if (props && typeof props === "object") {
+              for (const [key, val] of Object.entries(props)) {
+                const p = val as any;
+                if (p?.GlobalId?.value) guidMapRef.current.set(p.GlobalId.value, Number(key));
+              }
             }
           }
+          console.log("[guidMap] legacy fallback:", guidMapRef.current.size, "GUIDs");
         }
 
         // Fit camera
@@ -281,50 +307,36 @@ export function BIMViewer() {
 
     (async () => {
       try {
-        const allGuids = [...guidMapRef.current.keys()];
-        if (allGuids.length > 0) {
-          const allMap = await fragments.guidsToModelIdMap(allGuids);
-          if (seq !== colorSeqRef.current) return;
-          await fragments.resetHighlight(allMap);
+        // Reset all highlights on all models
+        for (const fragModel of fragments.list.values()) {
+          try { await fragModel.resetHighlight(); } catch { /* skip */ }
         }
 
         // Ghost pass: fade non-fail elements via setOpacity + color fail elements
         if (isHighlightActive) {
-          const hlKeys = Object.keys(hlMap);
-          const failGuids = hlKeys.filter(g => guidMapRef.current.has(g));
-          console.log("[highlight] hlMap keys:", hlKeys.length, "matched in guidMap:", failGuids.length, "guidMap size:", guidMapRef.current.size);
-          if (hlKeys.length > 0 && failGuids.length === 0) {
-            console.log("[highlight] MISMATCH — sample hlMap keys:", hlKeys.slice(0, 3));
-            console.log("[highlight] sample guidMap keys:", [...guidMapRef.current.keys()].slice(0, 3));
-          }
+          const failGuids = Object.keys(hlMap);
+          // Let OBC resolve GUIDs — don't filter through guidMapRef
           const failMap: Record<string, Set<number>> = failGuids.length > 0
             ? await fragments.guidsToModelIdMap(failGuids)
             : {};
           if (seq !== colorSeqRef.current) return;
-          console.log("[highlight] failMap models:", Object.keys(failMap).length, "fragments.list size:", fragments.list.size);
+          const matchedModels = Object.keys(failMap).length;
+          const totalFailIds = Object.values(failMap).reduce((n, s) => n + s.size, 0);
+          console.log("[highlight]", failGuids.length, "fail GUIDs →", totalFailIds, "localIds across", matchedModels, "models");
           const failColor = new THREE.Color("#e62020");
           for (const [modelId, fragModel] of fragments.list) {
             try {
               await fragModel.setOpacity(undefined, 0.08);
               const failIds = failMap[modelId];
-              console.log("[highlight] model", modelId, "failIds:", failIds?.size ?? 0);
               if (failIds && failIds.size > 0) {
                 const ids = [...failIds];
                 await fragModel.resetOpacity(ids);
-                // Apply red highlight (full material override)
-                try {
-                  await fragModel.highlight(ids, {
-                    color: failColor, renderedFaces: 1, opacity: 1, transparent: false,
-                  } as any);
-                  console.log("[highlight] applied highlight to", ids.length, "elements");
-                } catch (e) {
-                  console.warn("[highlight] highlight() failed, trying setColor:", e);
-                  try {
-                    await fragModel.setColor(ids, failColor);
-                  } catch (e2) { console.warn("[highlight] setColor also failed:", e2); }
-                }
+                await fragModel.highlight(ids, {
+                  color: failColor, renderedFaces: 1, opacity: 1, transparent: false,
+                } as any);
+                console.log("[highlight] colored", ids.length, "elements in model", modelId);
               }
-            } catch (e) { console.warn("[highlight] setOpacity failed:", e); }
+            } catch (e) { console.warn("[highlight] per-model error:", e); }
           }
         } else {
           // Restore full opacity + colors when highlight mode is off
@@ -332,10 +344,9 @@ export function BIMViewer() {
             try { await fragModel.resetOpacity(undefined); } catch { /* skip */ }
             try { await fragModel.resetColor(undefined); } catch { /* skip */ }
           }
-          // Apply base colorMap
+          // Apply base colorMap — pass all GUIDs to OBC directly
           const byColor = new Map<string, string[]>();
           for (const [guid, hex] of Object.entries(currentColorMap)) {
-            if (!guidMapRef.current.has(guid)) continue;
             const arr = byColor.get(hex) || [];
             arr.push(guid);
             byColor.set(hex, arr);
@@ -352,21 +363,17 @@ export function BIMViewer() {
 
         // Selection highlight (always applies)
         if (seq !== colorSeqRef.current) return;
-        const selectedGuids = [...useStore.getState().selectedIds].filter((g) => guidMapRef.current.has(g));
+        const selectedGuids = [...useStore.getState().selectedIds];
         if (selectedGuids.length > 0) {
           const selMap = await fragments.guidsToModelIdMap(selectedGuids);
           for (const [modelId, fragModel] of fragments.list) {
             const selIds = selMap[modelId];
             if (selIds && selIds.size > 0) {
               try {
-                await fragModel.setColor([...selIds], new THREE.Color(0x2997ff));
-              } catch {
-                try {
-                  await fragModel.highlight([...selIds], {
-                    color: new THREE.Color(0x2997ff), renderedFaces: 1, opacity: 1, transparent: false,
-                  } as any);
-                } catch { /* skip */ }
-              }
+                await fragModel.highlight([...selIds], {
+                  color: new THREE.Color(0x2997ff), renderedFaces: 1, opacity: 1, transparent: false,
+                } as any);
+              } catch { /* skip */ }
             }
           }
         }
