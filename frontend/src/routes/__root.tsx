@@ -110,6 +110,27 @@ function RootComponent() {
 function CenterStage() {
   const hasResults = useStore((s) => s.checkResults.length > 0);
   const [dockMode, setDockMode] = useState<"collapsed" | "open" | "large">("collapsed");
+  const [failHighlight, setFailHighlight] = useState(false);
+  const elementResults = useStore((s) => s.elementResults);
+  const selectedCheckId = useStore((s) => s.selectedCheckId);
+
+  const failCount = elementResults.filter((er) => er.check_status === "fail" && er.element_id).length;
+
+  function toggleFailHighlight() {
+    const next = !failHighlight;
+    setFailHighlight(next);
+    if (next) {
+      const failMap: Record<string, string> = {};
+      for (const er of elementResults) {
+        if (er.check_status !== "fail" || !er.element_id) continue;
+        if (selectedCheckId && er.check_result_id !== selectedCheckId) continue;
+        failMap[er.element_id] = "#e62020";
+      }
+      useStore.getState().setHighlightColorMap(failMap);
+    } else {
+      useStore.getState().clearHighlights();
+    }
+  }
 
   const isDockVisible = dockMode !== "collapsed";
   const isDockLarge = dockMode === "large";
@@ -141,6 +162,25 @@ function CenterStage() {
           transition: "all 400ms cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
+        {failCount > 0 && (
+          <button
+            onClick={toggleFailHighlight}
+            className="toolbar-btn"
+            style={{
+              background: failHighlight ? "rgba(230, 32, 32, 0.85)" : "rgba(14, 20, 34, 0.9)",
+              color: failHighlight ? "#fff" : undefined,
+              borderColor: failHighlight ? "rgba(255,100,100,0.5)" : undefined,
+              boxShadow: failHighlight
+                ? "0 4px 18px rgba(230, 32, 32, 0.5)"
+                : "0 4px 14px rgba(0,0,0,0.4)",
+              fontSize: "0.74rem",
+              padding: "0.42rem 0.78rem",
+              borderRadius: 999,
+            }}
+          >
+            {failHighlight ? "Clear Highlights" : `Highlight Failures (${failCount})`}
+          </button>
+        )}
         <button
           onClick={() => setDockMode((m) => (m === "collapsed" ? "open" : "collapsed"))}
           className="toolbar-btn"
@@ -152,7 +192,7 @@ function CenterStage() {
             borderRadius: 999,
           }}
         >
-          {dockMode === "collapsed" ? `Show Insights${hasResults ? " ●" : ""}` : "Hide Insights"}
+          {dockMode === "collapsed" ? `Show Insights${hasResults ? " \u25cf" : ""}` : "Hide Insights"}
         </button>
         {isDockVisible && (
           <button
