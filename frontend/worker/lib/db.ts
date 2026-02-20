@@ -52,9 +52,10 @@ export async function getJobsByProject(db: D1Database, projectId: string) {
 }
 
 export async function getUserStats(db: D1Database, userId: string) {
-  const projects = await db.prepare("SELECT COUNT(*) as cnt FROM projects WHERE user_id = ?").bind(userId).first<{ cnt: number }>();
+  // Count projects visible to this user (own + shared)
+  const projects = await db.prepare("SELECT COUNT(*) as cnt FROM projects WHERE user_id = ? OR user_id IS NULL").bind(userId).first<{ cnt: number }>();
   const checks = await db.prepare(
-    "SELECT COUNT(*) as cnt FROM check_results WHERE project_id IN (SELECT id FROM projects WHERE user_id = ?)"
+    "SELECT COUNT(*) as cnt FROM check_results WHERE project_id IN (SELECT id FROM projects WHERE user_id = ? OR user_id IS NULL)"
   ).bind(userId).first<{ cnt: number }>();
   return { project_count: projects?.cnt ?? 0, check_count: checks?.cnt ?? 0 };
 }

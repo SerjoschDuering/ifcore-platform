@@ -288,14 +288,24 @@ export function BIMViewer() {
           await fragments.resetHighlight(allMap);
         }
 
-        // Ghost pass: make ALL non-fail elements nearly transparent
-        if (isHighlightActive && allGuids.length > 0) {
+        // Ghost pass: hide ALL non-fail elements when highlight mode is active
+        if (isHighlightActive) {
           const failGuids = new Set(Object.keys(hlMap));
+          // Show all first, then hide non-fail
+          for (const m of fragments.list.values()) {
+            try { (m as any).setVisible(undefined, true); } catch { /* skip */ }
+          }
           const ghostGuids = allGuids.filter((g) => !failGuids.has(g));
           if (ghostGuids.length > 0) {
-            const ghostMap = await fragments.guidsToModelIdMap(ghostGuids);
-            if (seq !== colorSeqRef.current) return;
-            await fragments.highlight({ r: 120, g: 130, b: 150, opacity: 0.08 }, ghostMap);
+            const ghostEids = ghostGuids.map((g) => guidMapRef.current.get(g)).filter((e): e is number => e !== undefined);
+            for (const m of fragments.list.values()) {
+              try { (m as any).setVisible(ghostEids, false); } catch { /* skip */ }
+            }
+          }
+        } else {
+          // Restore visibility when highlight mode is off
+          for (const m of fragments.list.values()) {
+            try { (m as any).setVisible(undefined, true); } catch { /* skip */ }
           }
         }
 

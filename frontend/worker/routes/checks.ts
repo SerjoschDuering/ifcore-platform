@@ -74,10 +74,14 @@ app.get("/jobs/:id", async (c) => {
       if (hfResp.ok) {
         const hfData: any = await hfResp.json();
         if (hfData.status === "done") {
-          // Remap HF job_id → CF job_id on check results before D1 insert (FK constraint)
-          const remappedChecks = (hfData.check_results || []).map((cr: any) => ({ ...cr, job_id: job.id }));
-          await insertCheckResults(c.env.DB, remappedChecks, hfData.element_results || []);
+          // Mark done FIRST to prevent duplicate inserts from concurrent polls
           await updateJob(c.env.DB, job.id, { status: "done", completed_at: Date.now() });
+          // Check if results already exist (race guard)
+          const existing = await c.env.DB.prepare("SELECT COUNT(*) as cnt FROM check_results WHERE job_id = ?").bind(job.id).first<{ cnt: number }>();
+          if (!existing?.cnt) {
+            const remappedChecks = (hfData.check_results || []).map((cr: any) => ({ ...cr, job_id: job.id }));
+            await insertCheckResults(c.env.DB, remappedChecks, hfData.element_results || []);
+          }
           (job as any).status = "done";
         } else if (hfData.status === "error") {
           await updateJob(c.env.DB, job.id, { status: "error", completed_at: Date.now() });
