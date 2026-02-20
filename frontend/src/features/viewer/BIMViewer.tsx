@@ -288,24 +288,26 @@ export function BIMViewer() {
           await fragments.resetHighlight(allMap);
         }
 
-        // Ghost pass: hide ALL non-fail elements when highlight mode is active
+        // Ghost pass: fade non-fail elements via setOpacity
         if (isHighlightActive) {
-          const failGuids = new Set(Object.keys(hlMap));
-          // Show all first, then hide non-fail
-          for (const m of fragments.list.values()) {
-            try { (m as any).setVisible(undefined, true); } catch { /* skip */ }
-          }
-          const ghostGuids = allGuids.filter((g) => !failGuids.has(g));
-          if (ghostGuids.length > 0) {
-            const ghostEids = ghostGuids.map((g) => guidMapRef.current.get(g)).filter((e): e is number => e !== undefined);
-            for (const m of fragments.list.values()) {
-              try { (m as any).setVisible(ghostEids, false); } catch { /* skip */ }
-            }
+          const failGuids = [...Object.keys(hlMap)].filter(g => guidMapRef.current.has(g));
+          const failMap: Record<string, Set<number>> = failGuids.length > 0
+            ? await fragments.guidsToModelIdMap(failGuids)
+            : {};
+          if (seq !== colorSeqRef.current) return;
+          for (const [modelId, fragModel] of fragments.list) {
+            try {
+              await fragModel.setOpacity(undefined, 0.08);
+              const failIds = failMap[modelId];
+              if (failIds && failIds.size > 0) {
+                await fragModel.resetOpacity([...failIds]);
+              }
+            } catch { /* model may not support setOpacity */ }
           }
         } else {
-          // Restore visibility when highlight mode is off
-          for (const m of fragments.list.values()) {
-            try { (m as any).setVisible(undefined, true); } catch { /* skip */ }
+          // Restore full opacity when highlight mode is off
+          for (const fragModel of fragments.list.values()) {
+            try { await fragModel.resetOpacity(undefined); } catch { /* skip */ }
           }
         }
 
@@ -321,10 +323,9 @@ export function BIMViewer() {
 
         for (const [hex, guids] of byColor) {
           if (seq !== colorSeqRef.current) return;
-          const c = new THREE.Color(hex);
           const map = await fragments.guidsToModelIdMap(guids);
           await fragments.highlight(
-            { r: Math.round(c.r * 255), g: Math.round(c.g * 255), b: Math.round(c.b * 255), opacity: hex === "#e62020" ? 1 : 0.2 },
+            { color: new THREE.Color(hex), renderedFaces: 1, opacity: 1, transparent: false } as any,
             map
           );
         }
@@ -333,8 +334,13 @@ export function BIMViewer() {
         const selectedGuids = [...useStore.getState().selectedIds].filter((g) => guidMapRef.current.has(g));
         if (selectedGuids.length > 0) {
           const map = await fragments.guidsToModelIdMap(selectedGuids);
-          await fragments.highlight({ r: 41, g: 151, b: 255, opacity: 1 }, map);
+          await fragments.highlight(
+            { color: new THREE.Color(0x2997ff), renderedFaces: 1, opacity: 1, transparent: false } as any,
+            map
+          );
         }
+
+        await fragments.core.update(true);
       } catch {
         // Fallback: v2 fragment-level coloring
         try {

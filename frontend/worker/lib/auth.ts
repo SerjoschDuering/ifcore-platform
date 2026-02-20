@@ -46,9 +46,11 @@ async function pbkdf2Verify(data: { password: string; hash: string }): Promise<b
 }
 
 let _authInstance: ReturnType<typeof betterAuth> | null = null;
+let _cachedSecret: string | null = null;
 
 export function createAuth(env: Bindings) {
-  if (_authInstance) return _authInstance;
+  // Recreate if env changed (different secret = different bindings)
+  if (_authInstance && _cachedSecret === env.BETTER_AUTH_SECRET) return _authInstance;
   const db = drizzle(env.DB, { schema });
 
   _authInstance = betterAuth({
@@ -72,6 +74,7 @@ export function createAuth(env: Bindings) {
       password: { hash: pbkdf2Hash, verify: pbkdf2Verify },
     },
   });
+  _cachedSecret = env.BETTER_AUTH_SECRET;
   return _authInstance;
 }
 

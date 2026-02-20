@@ -3,7 +3,10 @@ import type { Project, Job } from "./types";
 const BASE = "/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, init);
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    credentials: "include",
+  });
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   return res.json();
 }
