@@ -1,4 +1,4 @@
-import type { Project, Job } from "./types";
+import type { Project, Job, CheckResult, ElementResult } from "./types";
 
 const BASE = "/api";
 
@@ -32,4 +32,20 @@ export async function startCheck(projectId: string, fileUrl: string): Promise<{ 
 
 export async function getJob(id: string): Promise<Job> {
   return request(`/checks/jobs/${id}`);
+}
+
+export async function sendChat(
+  message: string,
+  checkResults: CheckResult[],
+  elementResults: ElementResult[],
+): Promise<{ response: string }> {
+  return request("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      check_results: checkResults,
+      element_results: elementResults,
+    }),
+  });
 }

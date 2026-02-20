@@ -1,6 +1,7 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { Navbar } from "../components/Navbar";
 import { ViewerPanel } from "../features/viewer/ViewerPanel";
+import { ChatPanel } from "../features/chat/ChatPanel";
 
 export const Route = createRootRoute({
   component: () => (
@@ -12,6 +13,7 @@ export const Route = createRootRoute({
         </main>
         <ViewerPanel />
       </div>
+      <ChatPanel />
     </div>
   ),
 });
