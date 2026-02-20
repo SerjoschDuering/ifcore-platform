@@ -12,8 +12,13 @@ export async function insertProject(db: D1Database, p: {
   ).run();
 }
 
-export async function getProjects(db: D1Database) {
-  return db.prepare("SELECT * FROM projects ORDER BY created_at DESC").all();
+export async function getProjects(db: D1Database, userId?: string | null) {
+  if (userId) {
+    // Logged-in: own projects + shared (null user_id) projects
+    return db.prepare("SELECT * FROM projects WHERE user_id = ? OR user_id IS NULL ORDER BY created_at DESC").bind(userId).all();
+  }
+  // Anonymous: only shared projects
+  return db.prepare("SELECT * FROM projects WHERE user_id IS NULL ORDER BY created_at DESC").all();
 }
 
 export async function getProject(db: D1Database, id: string) {

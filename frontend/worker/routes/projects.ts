@@ -1,12 +1,14 @@
 import { Hono } from "hono";
 import type { Bindings } from "../types";
 import { getProjects, getProject, getJobsByProject } from "../lib/db";
+import { getSessionUser } from "../lib/auth";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.get("/", async (c) => {
   try {
-    const result = await getProjects(c.env.DB);
+    const user = await getSessionUser(c.env, c.req.raw);
+    const result = await getProjects(c.env.DB, user?.id);
     return c.json(result.results || []);
   } catch (e: any) {
     console.error("[projects] GET / error:", e);

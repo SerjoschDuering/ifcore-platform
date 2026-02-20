@@ -74,3 +74,14 @@ export function createAuth(env: Bindings) {
   });
   return _authInstance;
 }
+
+/** Extract current user from session cookie. Returns null if not authenticated. */
+export async function getSessionUser(env: Bindings, req: Request): Promise<{ id: string; email: string; name: string | null } | null> {
+  try {
+    const auth = createAuth(env);
+    const session = await auth.api.getSession({ headers: req.headers });
+    return session?.user ?? null;
+  } catch {
+    return null;
+  }
+}
