@@ -1,6 +1,8 @@
 # IFCore Platform
 
-Shared IFC compliance checker platform for IAAC AI Week 2026.
+Shared IFC compliance checker platform — upload a building model, run automated checks, view results in 3D.
+
+> **Want to deploy your own?** See **[docs/DEPLOY-YOUR-OWN.md](docs/DEPLOY-YOUR-OWN.md)** — step-by-step guide with AI-assisted setup prompts, feature ideas, and Agent Skills integration.
 
 ## Architecture
 
@@ -9,108 +11,94 @@ Monorepo with two deployments:
 | Directory | Deploys to | What |
 |-----------|-----------|------|
 | `backend/` | HuggingFace Space (Docker) | FastAPI orchestrator — discovers and runs `check_*` functions from all teams |
-| `frontend/` | Cloudflare Pages + Workers | Modular UI (upload, results, 3D viewer, dashboard) + API gateway |
-
-## How It Works
+| `frontend/` | Cloudflare Worker | React UI + Hono API gateway (D1 database, R2 file storage) |
 
 ```
-Browser → Cloudflare Worker (API gateway) → HF Space (runs checks) → callback → D1 (results)
-                                                                                    ↑
-Browser polls Worker → reads D1 ─────────────────────────────────────────────────────┘
+Browser ──► Cloudflare Worker (React + API gateway)
+               │  ├── D1 (results, auth)
+               │  └── R2 (IFC files)
+               └──► HuggingFace Space (Docker)
+                       └── FastAPI orchestrator → teams/*/tools/checker_*.py
 ```
 
-1. **Upload** — Browser uploads IFC to R2 via presigned URL
-2. **Check** — Worker forwards to HF Space, gets `jobId` back immediately
-3. **Poll** — Browser polls `GET /jobs/:id` every 2s
-4. **Callback** — HF Space finishes checks, POSTs results to Worker → D1
-5. **View** — Next poll returns completed results
+**Data flow (polling, not callbacks):**
+1. Upload IFC → stored in R2
+2. Worker reads from R2, base64-encodes, POSTs to HF `/check`
+3. HF returns `job_id` immediately, runs checks in background
+4. Browser polls `GET /api/checks/jobs/:id` every 2s
+5. Worker lazy-polls HF — when done, stores results in D1, returns to frontend
 
-## Repo Structure
+## Quick Start (local dev)
 
+Two terminals. Python 3.10+, Node 18+.
+
+```bash
+# Terminal 1 — backend
+cd backend && pip install -r requirements.txt
+uvicorn main:app --reload --port 7860
+
+# Terminal 2 — frontend
+cd frontend && npm install && npm run db:migrate
+echo "HF_SPACE_URL=http://localhost:7860" > .dev.vars
+npm run dev                        # → http://localhost:5173
 ```
-ifcore-platform/
-├── backend/                  → HuggingFace Space
-│   ├── README.md             ← HF frontmatter (sdk: docker, app_port: 7860)
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── main.py               ← FastAPI: /health, POST /check, POST /jobs/:id/complete
-│   ├── orchestrator.py       ← discovers check_* across teams/, runs them
-│   ├── deploy.sh             ← pull submodules → flatten → push to HF
-│   └── teams/                ← git submodules, flattened before HF deploy
-│       ├── team-a/src/*.py
-│       └── ...
-│
-├── frontend/                 → Cloudflare Pages + Worker
-│   ├── public/index.html
-│   ├── src/
-│   │   ├── app.js            ← router, mounts modules
-│   │   ├── api.js            ← all fetch() calls
-│   │   ├── store.js          ← shared Zustand store
-│   │   ├── poller.js         ← polls jobs, updates store
-│   │   └── modules/
-│   │       ├── upload/
-│   │       ├── results/
-│   │       ├── viewer-3d/
-│   │       └── dashboard/
-│   ├── functions/
-│   │   └── api/[[route]].js  ← CF Pages Functions (API gateway)
-│   ├── migrations/
-│   │   └── 0001_create_jobs.sql
-│   └── wrangler.toml         ← D1 + R2 bindings
-│
-└── feature-plans/            ← PRDs before building modules
+
+`@cloudflare/vite-plugin` emulates D1/R2 locally. No cloud accounts needed for dev.
+
+## Deploy
+
+> **Full guide with AI-assisted prompts:** [docs/DEPLOY-YOUR-OWN.md](docs/DEPLOY-YOUR-OWN.md)
+
+**Short version** — only 2 files need editing for a new owner:
+
+1. `backend/deploy.sh` line 5: `HF_REPO="YOURHFNAME/ifcore-platform"`
+2. `frontend/wrangler.jsonc`: `database_id` + `HF_SPACE_URL`
+
+```bash
+# Backend → HF Space
+bash backend/deploy.sh
+
+# Frontend → Cloudflare
+cd frontend && npm run db:migrate:remote && npm run deploy
 ```
 
 ## Team Integration
 
-Teams work in their own repos (`ifcore-team-{a..e}`). Their code is pulled in as git submodules:
+Teams work in their own repos. Their code is pulled in as git submodules:
 
 ```bash
-# Captain: pull latest from all teams and deploy
-./backend/deploy.sh
+git submodule add -f https://github.com/ORG/team-repo backend/teams/team-name
+bash backend/deploy.sh          # flatten submodules → push to HF
 ```
 
-The deploy script flattens submodules into real files before pushing to HF (HF doesn't reliably init submodules).
+The orchestrator auto-discovers all `check_*` functions in `teams/*/tools/checker_*.py`.
 
-## Check Result Schema
-
-Every check function returns results in this format:
-
-```json
-{
-  "id":            "string",
-  "project_id":    "string",
-  "job_id":        "string",
-  "check_name":    "string",
-  "team":          "string",
-  "status":        "running | pass | fail | unknown | error",
-  "summary":       "string",
-  "has_elements":  0 | 1,
-  "created_at":    "integer (unix timestamp)"
-}
-```
-
-## Adding a Backend Check
-
-Drop a `check_*.py` file in your team's `src/` folder. The orchestrator auto-discovers it:
+## Check Function Contract
 
 ```python
-def check_door_width(model) -> list[dict]:
-    # model is an ifcopenshell.file object
-    # return list of check results matching the schema above
-    ...
+# File: tools/checker_<topic>.py (inside team repo)
+# Function: check_<name>(model, **kwargs) -> list[dict]
+
+def check_door_count(model, min_doors=2):
+    doors = model.by_type("IfcDoor")
+    return [{
+        "element_id":       door.GlobalId,
+        "element_type":     "IfcDoor",
+        "element_name":     door.Name or f"Door #{door.id()}",
+        "element_name_long": None,
+        "check_status":     "pass",
+        "actual_value":     "Present",
+        "required_value":   f">= {min_doors} doors total",
+        "comment":          None,
+        "log":              None,
+    } for door in doors]
 ```
 
-## Adding a Frontend Module
-
-1. Create `frontend/src/modules/<name>/index.js` with `mount(container)`
-2. Register the route in `app.js`
-3. Read shared state from the Zustand store
-
-Modules never import from each other — they communicate through the store.
+Full contract + examples: `backend/teams/demo/tools/checker_demo.py`
 
 ## Tech Stack
 
 - **Backend:** Python, FastAPI, ifcopenshell, PydanticAI, Gemini
-- **Frontend:** Vanilla JS, Zustand, Three.js (3D viewer)
-- **Infra:** HuggingFace Spaces (Docker), Cloudflare Pages/Workers/D1/R2
+- **Frontend:** React, TypeScript, Zustand, Recharts, That Open Engine (@thatopen/components)
+- **API:** Hono on Cloudflare Worker, Better Auth
+- **Infra:** HuggingFace Spaces (Docker), Cloudflare Workers/D1/R2
