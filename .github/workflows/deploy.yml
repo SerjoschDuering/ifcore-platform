@@ -44,7 +44,6 @@ jobs:
         run: cd frontend && npm install
 
       - name: Apply D1 migrations
-        continue-on-error: true  # migrations may already be applied; API token may lack D1 perms
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
