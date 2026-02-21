@@ -2,14 +2,23 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-HF_REPO="serJD/ifcore-platform"
+
+# --- Target selection (default: staging for safety) ---
+TARGET="${1:-staging}"
+case "$TARGET" in
+    staging) HF_REPO="${HF_REPO:-serJD/ifcore-platform-staging}" ;;
+    prod)    HF_REPO="${HF_REPO:-serJD/ifcore-platform}" ;;
+    *)       echo "Usage: deploy.sh [staging|prod]"; exit 1 ;;
+esac
+
+echo "Deploying to $TARGET -> https://huggingface.co/spaces/$HF_REPO"
 
 cd "$SCRIPT_DIR"
 
 git -C "$SCRIPT_DIR/.." submodule update --init --recursive --remote
 
 TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
+trap 'rm -rf "$TMPDIR"' EXIT
 
 rsync -a --exclude='.git' --exclude='__pycache__' \
     --exclude='*.pdf' --exclude='*.png' --exclude='*.jpg' --exclude='*.jpeg' \
@@ -26,7 +35,7 @@ git init -b main
 git config user.email "deploy@ifcore"
 git config user.name "IFCore Deploy"
 git add .
-git commit -m "deploy: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+git commit --no-gpg-sign -m "deploy($TARGET): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # Use token auth in CI (set HF_TOKEN env var or GitHub secret)
 if [ -n "${HF_TOKEN:-}" ]; then
     HF_REMOTE="https://serJD:${HF_TOKEN}@huggingface.co/spaces/$HF_REPO"

@@ -7,8 +7,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
+    "deploy:staging": "CLOUDFLARE_ENV=staging npm run build && CLOUDFLARE_ENV=staging wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply ifcore-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply ifcore-db --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply ifcore-db --remote",
+    "db:migrate:staging": "wrangler d1 migrations apply ifcore-db-staging --remote --env staging"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.100.0",
