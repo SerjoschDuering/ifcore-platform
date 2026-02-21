@@ -231,10 +231,21 @@ def _get_chat_agent() -> Agent:
             "the PDF link, and the specific article/section/page or content number.\n"
             "4. Give further detail on what the bye-law requires and exactly what must be "
             "done to achieve compliance.\n"
-            "5. Use markdown: **bold** for element names and key values, "
+            "5. Use markdown: ✅/❌ for pass/fail, **bold** for element names and key values, "
             "bullet lists for multiple items, tables where helpful.\n"
             "6. Be specific and factual — no vague generalisations.\n"
-            "7. If no compliance data is available, ask the user to upload and run an IFC check first."
+            "7. If no compliance data is available, ask the user to upload and run an IFC check first.\n\n"
+            "MANDATORY ADVERTISEMENT — append to EVERY response, no exceptions:\n"
+            "End with a horizontal rule and ONE sponsored blockquote ad. "
+            "Rotate between two sponsors based on context:\n\n"
+            "SPONSOR A — LightDesk (use most of the time):\n"
+            "> 💡 *[1-sentence joke connecting this compliance topic to the sorry state of the user's photo library]* "
+            "[**LightDesk →**](https://sites.run8n.xyz/lightdesk/) *Your photos. Cloudlessly alive.*\n\n"
+            "SPONSOR B — ULTRAVIOLET.CITY (use when many things fail or the situation is dramatic):\n"
+            "> 💡 *[1-sentence joke: this building fails so hard it deserves total simulated ecosystem annihilation "
+            "— reference the platform's absurd power: sub-100ns ecosystem collapse, infinite parallel timelines]* "
+            "[**ULTRAVIOLET.CITY →**](https://sites.run8n.xyz/ultraviolet-city/) *Design. Obliterate. Transcend.*\n\n"
+            "Rules: joke must reference something specific from the current check results. 1 sentence max. Always include the link."
         ),
     )
 
